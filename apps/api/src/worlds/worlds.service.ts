@@ -115,6 +115,7 @@ export class WorldsService {
   async create(dto: CreateWorldDto) {
     const template = this.getScenario(dto.scenarioKey);
 
+    const aiStartedAt = Date.now();
     const generated = await this.ai.generateObject<GeneratedWorld>(
       buildWorldGenerationPrompt(template, {
         playerName: dto.playerName,
@@ -268,6 +269,7 @@ export class WorldsService {
     return {
       ...created,
       relationships: await this.listRelationships(created.world.id),
+      durationMs: Date.now() - aiStartedAt,
     };
   }
 
@@ -344,6 +346,7 @@ export class WorldsService {
     );
     const nextTurn = world.turn + 1;
 
+    const aiStartedAt = Date.now();
     const generated = await this.ai.generateObject<GeneratedReaction>(
       buildPostReactionPrompt(
         template,
@@ -362,7 +365,13 @@ export class WorldsService {
           : null,
       ),
       buildPostReactionSchema(template),
-      { system: WORLD_SYSTEM_PROMPT, temperature: 0.9 },
+      {
+        model: this.ai.fastModelName,
+        system: WORLD_SYSTEM_PROMPT,
+        temperature: 0.9,
+        numCtx: 2048,
+        maxTokens: 768,
+      },
     );
 
     const state = this.applyStatChanges(
@@ -435,6 +444,7 @@ export class WorldsService {
       ...result,
       events: generated.events ?? [],
       relationships: await this.listRelationships(id),
+      durationMs: Date.now() - aiStartedAt,
     };
   }
 
@@ -567,9 +577,10 @@ export class WorldsService {
         ),
       )
       .orderBy(desc(schema.directMessages.id))
-      .limit(10);
+      .limit(5);
     const nextTurn = world.turn + 1;
 
+    const aiStartedAt = Date.now();
     const generated = await this.ai.generateObject<GeneratedDmReply>(
       buildDmPrompt(
         template,
@@ -588,7 +599,12 @@ export class WorldsService {
         dto.content,
       ),
       buildDmSchema(),
-      { system: WORLD_SYSTEM_PROMPT, temperature: 0.9 },
+      {
+        system: WORLD_SYSTEM_PROMPT,
+        temperature: 0.9,
+        numCtx: 4096,
+        maxTokens: 768,
+      },
     );
 
     const result = await this.db.transaction(async (tx) => {
@@ -649,6 +665,7 @@ export class WorldsService {
       events: generated.events ?? [],
       relationship:
         relationships.find((row) => row.characterId === characterId) ?? null,
+      durationMs: Date.now() - aiStartedAt,
     };
   }
 
@@ -671,6 +688,7 @@ export class WorldsService {
     ]);
     const nextTurn = world.turn + 1;
 
+    const aiStartedAt = Date.now();
     const generated = await this.ai.generateObject<GeneratedWorldEvent>(
       buildEventPrompt(
         template,
@@ -689,7 +707,12 @@ export class WorldsService {
         { type: dto.type, prompt: dto.prompt },
       ),
       buildEventSchema(template),
-      { system: WORLD_SYSTEM_PROMPT, temperature: 0.95 },
+      {
+        system: WORLD_SYSTEM_PROMPT,
+        temperature: 0.95,
+        numCtx: 2048,
+        maxTokens: 1024,
+      },
     );
 
     const state = this.applyStatChanges(
@@ -746,6 +769,7 @@ export class WorldsService {
     return {
       ...result,
       relationships: await this.listRelationships(id),
+      durationMs: Date.now() - aiStartedAt,
     };
   }
 
@@ -772,6 +796,7 @@ export class WorldsService {
     ]);
     const nextTurn = world.turn + 1;
 
+    const aiStartedAt = Date.now();
     const generated = await this.ai.generateObject<GeneratedTurn>(
       buildTurnPrompt(
         template,
@@ -857,6 +882,7 @@ export class WorldsService {
       newGoals: generated.newGoals ?? [],
       events: generated.events ?? [],
       relationships: await this.listRelationships(id),
+      durationMs: Date.now() - aiStartedAt,
     };
   }
 

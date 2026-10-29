@@ -15,7 +15,9 @@ export const envValidationSchema = Joi.object({
     .uri({ scheme: ['http', 'https'] })
     .default('http://127.0.0.1:11434'),
 
-  OLLAMA_MODEL: Joi.string().default('qwen3:4b'),
+  OLLAMA_MODEL: Joi.string().default('qwen3.5:4b'),
+
+  OLLAMA_FAST_MODEL: Joi.string().default('qwen3:1.7b'),
 
   OLLAMA_EMBED_MODEL: Joi.string().default('nomic-embed-text'),
 

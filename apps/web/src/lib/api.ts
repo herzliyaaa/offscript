@@ -36,14 +36,14 @@ export const api = {
   worlds: () => request<World[]>('/worlds'),
   world: (id: number) => request<World>(`/worlds/${id}`),
   createWorld: (input: CreateWorldInput) =>
-    request<World>('/worlds', {
+    request<World & { durationMs?: number }>('/worlds', {
       method: 'POST',
       body: JSON.stringify(input),
     }),
   feed: (id: number, limit = 30) =>
     request<Post[]>(`/worlds/${id}/feed?limit=${limit}`),
   createPost: (id: number, content: string, parentId?: number) =>
-    request<{ world: World; post: Post; replies: Post[]; events: unknown[]; relationships: Relationship[] }>(
+    request<{ world: World; post: Post; replies: Post[]; events: unknown[]; relationships: Relationship[]; durationMs?: number }>(
       `/worlds/${id}/posts`,
       {
         method: 'POST',
@@ -55,7 +55,7 @@ export const api = {
   events: (id: number, limit = 20) =>
     request<WorldEvent[]>(`/worlds/${id}/events?limit=${limit}`),
   generateEvent: (id: number, type?: string, prompt?: string) =>
-    request<{ world: World; event: WorldEvent; posts: Post[]; relationships: Relationship[] }>(
+    request<{ world: World; event: WorldEvent; posts: Post[]; relationships: Relationship[]; durationMs?: number }>(
       `/worlds/${id}/events`,
       {
         method: 'POST',
@@ -75,6 +75,7 @@ export const api = {
       character: Character;
       events: unknown[];
       relationship: Relationship | null;
+      durationMs?: number;
     }>(`/worlds/${id}/conversations/${characterId}`, {
       method: 'POST',
       body: JSON.stringify({ content }),
@@ -90,6 +91,7 @@ export const api = {
       newGoals: string[];
       events: unknown[];
       relationships: Relationship[];
+      durationMs?: number;
     }>(`/worlds/${id}/actions`, {
       method: 'POST',
       body: JSON.stringify({ action }),

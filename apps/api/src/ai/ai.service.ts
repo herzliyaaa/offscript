@@ -11,6 +11,7 @@ import { OLLAMA } from './ai.provider.js';
 export type AiThinking = boolean | 'high' | 'medium' | 'low';
 
 export interface AiChatOptions {
+  model?: string;
   system?: string;
   temperature?: number;
   numCtx?: number;
@@ -31,6 +32,7 @@ export interface AiHealth {
 export class AiService {
   private readonly logger = new Logger(AiService.name);
   private readonly model: string;
+  private readonly fastModel: string;
   private readonly embedModel: string;
   private readonly temperature: number;
   private readonly numCtx: number;
@@ -41,7 +43,8 @@ export class AiService {
     @Inject(OLLAMA) private readonly ollama: Ollama,
     config: ConfigService,
   ) {
-    this.model = config.get<string>('ai.model', 'qwen3:4b');
+    this.model = config.get<string>('ai.model', 'qwen3.5:4b');
+    this.fastModel = config.get<string>('ai.fastModel', 'qwen3:1.7b');
     this.embedModel = config.get<string>('ai.embedModel', 'nomic-embed-text');
     this.temperature = config.get<number>('ai.temperature', 0.7);
     this.numCtx = config.get<number>('ai.numCtx', 8192);
@@ -53,12 +56,16 @@ export class AiService {
     return this.model;
   }
 
+  get fastModelName(): string {
+    return this.fastModel;
+  }
+
   async chat(
     messages: Message[],
     options: AiChatOptions = {},
   ): Promise<string> {
     const request: ChatRequest & { stream: true } = {
-      model: this.model,
+      model: options.model ?? this.model,
       messages: options.system
         ? [{ role: 'system', content: options.system }, ...messages]
         : messages,
@@ -73,12 +80,17 @@ export class AiService {
     }
 
     try {
+      const startedAt = Date.now();
       const stream = await this.ollama.chat(request);
       let content = '';
 
       for await (const part of stream) {
         content += part.message?.content ?? '';
       }
+
+      this.logger.log(
+        `Ollama chat completed in ${Date.now() - startedAt}ms (model: ${request.model})`,
+      );
 
       return this.cleanContent(content);
     } catch (error) {
