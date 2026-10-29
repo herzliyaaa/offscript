@@ -5,6 +5,9 @@ import { ConfigModule } from '@nestjs/config';
 import { DatabaseModule } from './db/database.module.js';
 import { HealthModule } from './health/health.module.js';
 import { UsersModule } from './users/users.module.js';
+import { AiModule } from './ai/ai.module.js';
+import { ScenariosModule } from './scenarios/scenarios.module.js';
+import { WorldsModule } from './worlds/worlds.module.js';
 import configuration from './config/configuration.js';
 import { envValidationSchema } from './config/env.validation.js';
 
@@ -19,6 +22,9 @@ import { envValidationSchema } from './config/env.validation.js';
     }),
     DatabaseModule,
     UsersModule,
+    AiModule,
+    ScenariosModule,
+    WorldsModule,
     HealthModule,
   ],
   controllers: [AppController],

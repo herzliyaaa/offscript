@@ -8,6 +8,20 @@
       "when": 1793188309556,
       "tag": "0000_harsh_tyger_tiger",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793273569910,
+      "tag": "0001_whole_lady_deathstrike",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793275237571,
+      "tag": "0002_living_wendell_vaughn",
+      "breakpoints": true
     }
   ]
 }

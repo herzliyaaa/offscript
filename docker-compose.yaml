@@ -29,6 +29,15 @@ services:
       NODE_ENV: development
       PORT: 3001
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-mydb}
+      OLLAMA_HOST: ${OLLAMA_HOST_DOCKER:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
+      OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
+      OLLAMA_TEMPERATURE: ${OLLAMA_TEMPERATURE:-0.7}
+      OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-8192}
+      OLLAMA_THINK: ${OLLAMA_THINK:-false}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-10m}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "3003:3001"
     volumes:
