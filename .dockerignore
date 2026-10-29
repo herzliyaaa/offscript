@@ -1,0 +1,48 @@
+
+# Git
+.git/
+
+# Dependencies
+**/node_modules/
+.pnpm-store/
+
+# Next.js generated files
+**/.next/
+**/.vercel/
+
+# Build artifacts
+**/dist/
+**/build/
+**/coverage/
+.turbo/
+
+# Environment files / secrets
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# Logs
+**/*.log
+
+# Tests and reports
+**/test-results/
+**/playwright-report/
+**/playwright/.cache/
+
+# Editors and operating system
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local databases
+**/*.sqlite
+**/*.sqlite3
+**/*.db
+
+# Temporary files
+**/.tmp/
+**/.temp/

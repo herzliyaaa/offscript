@@ -1,0 +1,86 @@
+
+# ==============================
+# Dependencies / pnpm
+# ==============================
+node_modules/
+.pnpm-store/
+
+# ==============================
+# Environment variables / secrets
+# ==============================
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# ==============================
+# Next.js (apps/web)
+# ==============================
+.next/
+out/
+next-env.d.ts
+
+# Next.js deployment output
+.vercel/
+
+# ==============================
+# NestJS (apps/api)
+# ==============================
+dist/
+coverage/
+
+# ==============================
+# Turborepo
+# ==============================
+.turbo/
+
+# ==============================
+# Build outputs
+# ==============================
+build/
+*.tsbuildinfo
+
+# ==============================
+# Tests
+# ==============================
+.nyc_output/
+test-results/
+playwright-report/
+playwright/.cache/
+
+# ==============================
+# Logs
+# ==============================
+logs/
+*.log
+pnpm-debug.log*
+
+# ==============================
+# IDE / OS
+# ==============================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# ==============================
+# Local databases
+# ==============================
+*.sqlite
+*.sqlite3
+*.db
+
+# ==============================
+# Temporary files
+# ==============================
+.tmp/
+.temp/
+
+# ==============================
+# Local certificates and keys
+# ==============================
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
