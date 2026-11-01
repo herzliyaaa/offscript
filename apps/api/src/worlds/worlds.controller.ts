@@ -21,6 +21,7 @@ import {
   GenerateEventDto,
   ListDmsQueryDto,
   ListEventsQueryDto,
+  PostInteractionDto,
   ListWorldsQueryDto,
   SendDmDto,
   UpdateCharacterDto,
@@ -105,6 +106,16 @@ export class WorldsController {
     @Param('postId', ParseIntPipe) postId: number,
   ) {
     return this.worlds.getPost(id, postId);
+  }
+
+  @Post(':id/posts/:postId/interactions')
+  @ApiOperation({ summary: 'Toggle a player post interaction' })
+  interactWithPost(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('postId', ParseIntPipe) postId: number,
+    @Body() dto: PostInteractionDto,
+  ) {
+    return this.worlds.interactWithPost(id, postId, dto.type);
   }
 
   @Get(':id/events')

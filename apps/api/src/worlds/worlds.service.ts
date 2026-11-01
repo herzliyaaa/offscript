@@ -27,6 +27,7 @@ import type {
   GenerateEventDto,
   SendDmDto,
   UpdateCharacterDto,
+  PostInteractionDto,
 } from './dto/world.dto.js';
 import { CELEBRITY_PRESETS, findCelebrityPreset } from './celebrity.presets.js';
 import {
@@ -114,6 +115,12 @@ type Tx = PgTransaction<
 >;
 type CharacterRow = typeof schema.characters.$inferSelect;
 type PostRow = typeof schema.posts.$inferSelect;
+type FeedPost = PostRow & {
+  repostCount: number;
+  quoteCount: number;
+  liked: boolean;
+  reposted: boolean;
+};
 type RelationshipRow = typeof schema.relationships.$inferSelect;
 
 @Injectable()
@@ -381,11 +388,12 @@ export class WorldsService {
   async get(id: number) {
     const world = await this.ensureWorld(id);
 
-    const [characters, feed, events, relationships] = await Promise.all([
+    const [characters, feed, events, relationships, relationshipMilestones] = await Promise.all([
       this.getCharacters(id),
       this.getRecentPosts(id, MAX_FEED),
       this.listEvents(id, 10),
       this.listRelationships(id),
+      this.listRelationshipMilestones(id),
     ]);
 
     const player = characters.find((character) => character.isPlayer);
@@ -402,6 +410,7 @@ export class WorldsService {
       feed,
       events,
       relationships,
+      relationshipMilestones,
     };
   }
 
@@ -421,6 +430,40 @@ export class WorldsService {
     return { post, replies };
   }
 
+  async interactWithPost(
+    worldId: number,
+    postId: number,
+    type: PostInteractionDto['type'],
+  ) {
+    await this.ensureWorld(worldId);
+    await this.getPostRow(worldId, postId);
+    const existing = await this.db
+      .select()
+      .from(schema.postInteractions)
+      .where(and(
+        eq(schema.postInteractions.worldId, worldId),
+        eq(schema.postInteractions.postId, postId),
+        eq(schema.postInteractions.type, type),
+      ));
+
+    if (existing.length) {
+      await this.db.delete(schema.postInteractions).where(eq(schema.postInteractions.id, existing[0].id));
+    } else {
+      await this.db.insert(schema.postInteractions).values({ worldId, postId, type });
+    }
+
+    const interactions = await this.db
+      .select()
+      .from(schema.postInteractions)
+      .where(and(eq(schema.postInteractions.worldId, worldId), eq(schema.postInteractions.postId, postId)));
+    return {
+      active: !existing.length,
+      type,
+      likeCount: interactions.filter((item) => item.type === 'like').length,
+      repostCount: interactions.filter((item) => item.type === 'repost').length,
+    };
+  }
+
   async createPost(id: number, dto: CreatePostDto) {
     const world = await this.ensureWorld(id);
     const template = this.getScenario(world.scenarioKey);
@@ -431,8 +474,8 @@ export class WorldsService {
       throw new NotFoundException('Player character not found');
     }
 
-    const parent = dto.parentId
-      ? await this.getPostRow(id, dto.parentId)
+    const parent = (dto.parentId ?? dto.quotePostId)
+      ? await this.getPostRow(id, dto.parentId ?? dto.quotePostId!)
       : null;
     const [recent, relationships] = await Promise.all([
       this.getRecentPosts(id, RECENT_FEED_FOR_AI),
@@ -488,9 +531,13 @@ export class WorldsService {
           authorHandle: player.handle,
           authorKind: player.kind,
           content: dto.content,
-          kind: parent ? 'reply' : 'post',
+          kind: dto.quotePostId ? 'quote' : parent ? 'reply' : 'post',
           likes: clamp(Math.round(generated.postLikes ?? 0), 0, 1_000_000),
           turn: nextTurn,
+          meta: {
+            ...(dto.quotePostId ? { quotedPostId: dto.quotePostId } : {}),
+            mentions: [...dto.content.matchAll(/@([a-zA-Z0-9_]+)/g)].map((match) => match[1]),
+          },
         })
         .returning();
 
@@ -1203,6 +1250,19 @@ export class WorldsService {
           updatedAt: new Date(),
         },
       });
+
+    if (existing && existing.status !== nextStatus) {
+      const [world] = await tx.select({ turn: schema.worlds.turn }).from(schema.worlds).where(eq(schema.worlds.id, worldId));
+      await tx.insert(schema.relationshipMilestones).values({
+        worldId,
+        characterId: character.id,
+        turn: world?.turn ?? 0,
+        previousStatus: existing.status,
+        nextStatus,
+        title: `${character.name} is now ${nextStatus}`,
+        note: nextNote || `Your relationship with ${character.name} changed.`,
+      });
+    }
   }
 
   private async getRelationshipRow(
@@ -1242,6 +1302,26 @@ export class WorldsService {
       )
       .where(eq(schema.relationships.worldId, worldId))
       .orderBy(schema.characters.id);
+  }
+
+  private async listRelationshipMilestones(worldId: number) {
+    return this.db
+      .select({
+        id: schema.relationshipMilestones.id,
+        characterId: schema.relationshipMilestones.characterId,
+        characterName: schema.characters.name,
+        turn: schema.relationshipMilestones.turn,
+        previousStatus: schema.relationshipMilestones.previousStatus,
+        nextStatus: schema.relationshipMilestones.nextStatus,
+        title: schema.relationshipMilestones.title,
+        note: schema.relationshipMilestones.note,
+        createdAt: schema.relationshipMilestones.createdAt,
+      })
+      .from(schema.relationshipMilestones)
+      .innerJoin(schema.characters, eq(schema.relationshipMilestones.characterId, schema.characters.id))
+      .where(eq(schema.relationshipMilestones.worldId, worldId))
+      .orderBy(desc(schema.relationshipMilestones.id))
+      .limit(30);
   }
 
   private async relationshipContext(
@@ -1289,13 +1369,29 @@ export class WorldsService {
   private async getRecentPosts(
     worldId: number,
     limit: number,
-  ): Promise<PostRow[]> {
-    return this.db
+  ): Promise<FeedPost[]> {
+    const posts = await this.db
       .select()
       .from(schema.posts)
       .where(eq(schema.posts.worldId, worldId))
       .orderBy(desc(schema.posts.id))
       .limit(clamp(limit, 1, 100));
+    if (!posts.length) return [];
+
+    const interactions = await this.db
+      .select()
+      .from(schema.postInteractions)
+      .where(eq(schema.postInteractions.worldId, worldId));
+    return posts.map((post) => {
+      const current = interactions.filter((item) => item.postId === post.id);
+      return {
+        ...post,
+        repostCount: current.filter((item) => item.type === 'repost').length,
+        quoteCount: current.filter((item) => item.type === 'quote').length,
+        liked: current.some((item) => item.type === 'like'),
+        reposted: current.some((item) => item.type === 'repost'),
+      };
+    });
   }
 
   private async getPostRow(worldId: number, postId: number): Promise<PostRow> {

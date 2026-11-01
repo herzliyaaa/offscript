@@ -114,6 +114,24 @@ export const posts = pgTable('posts', {
     .notNull(),
 });
 
+export const postInteractions = pgTable(
+  'post_interactions',
+  {
+    id: integer().primaryKey().generatedAlwaysAsIdentity(),
+    worldId: integer('world_id').notNull().references(() => worlds.id, { onDelete: 'cascade' }),
+    postId: integer('post_id').notNull().references(() => posts.id, { onDelete: 'cascade' }),
+    type: varchar({ length: 16 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('post_interactions_world_post_type_unique').on(
+      table.worldId,
+      table.postId,
+      table.type,
+    ),
+  ],
+);
+
 export const relationships = pgTable(
   'relationships',
   {
@@ -143,6 +161,18 @@ export const relationships = pgTable(
     ),
   ],
 );
+
+export const relationshipMilestones = pgTable('relationship_milestones', {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  worldId: integer('world_id').notNull().references(() => worlds.id, { onDelete: 'cascade' }),
+  characterId: integer('character_id').notNull().references(() => characters.id, { onDelete: 'cascade' }),
+  turn: integer().notNull(),
+  previousStatus: varchar('previous_status', { length: 32 }).notNull(),
+  nextStatus: varchar('next_status', { length: 32 }).notNull(),
+  title: varchar({ length: 255 }).notNull(),
+  note: text().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
 
 export const directMessages = pgTable('direct_messages', {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),

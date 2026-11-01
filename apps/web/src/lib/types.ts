@@ -48,6 +48,10 @@ export type Post = {
   content: string;
   kind: string;
   likes: number;
+  repostCount: number;
+  quoteCount: number;
+  liked: boolean;
+  reposted: boolean;
   replyCount: number;
   turn: number;
   createdAt: string;
@@ -121,6 +125,19 @@ export type World = {
   feed: Post[];
   events: WorldEvent[];
   relationships: Relationship[];
+  relationshipMilestones: RelationshipMilestone[];
+};
+
+export type RelationshipMilestone = {
+  id: number;
+  characterId: number;
+  characterName: string;
+  turn: number;
+  previousStatus: string;
+  nextStatus: string;
+  title: string;
+  note: string;
+  createdAt: string;
 };
 
 export type Scenario = {

@@ -261,7 +261,7 @@ export default function WorldPage() {
 
           <div className="space-y-3">
             {world.feed.map((p) => (
-              <PostCard key={p.id} post={p} worldId={id} />
+              <PostCard key={p.id} post={p} worldId={id} onChanged={loadWorld} />
             ))}
           </div>
 
@@ -421,6 +421,25 @@ export default function WorldPage() {
               Looking for another complication…
             </div>
           )}
+          {world.relationshipMilestones.length > 0 && (
+            <section className="rounded-2xl border border-[#38444d] bg-[#192734] p-5">
+              <h3 className="font-bold">Relationship milestones</h3>
+              <div className="mt-3 space-y-3">
+                {world.relationshipMilestones.slice(0, 5).map((milestone) => (
+                  <div className="border-l-2 border-[#1d9bf0] pl-3" key={milestone.id}>
+                    <div className="flex items-center justify-between gap-2 text-sm">
+                      <span className="font-bold">{milestone.title}</span>
+                      <span className="text-xs text-[#71767b]">turn {milestone.turn}</span>
+                    </div>
+                    <div className="mt-1 text-xs text-[#71767b]">
+                      {milestone.previousStatus} → {milestone.nextStatus}
+                    </div>
+                    <p className="mt-1 text-sm text-[#b8c0c7]">{milestone.note}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       )}
 
@@ -550,9 +569,28 @@ function PostComposer({
   );
 }
 
-function PostCard({ post, worldId }: { post: Post; worldId: number }) {
-  const [liked, setLiked] = useState(false);
-  const [reposted, setReposted] = useState(false);
+function PostCard({ post, worldId, onChanged }: { post: Post; worldId: number; onChanged: () => Promise<void> }) {
+  const [liked, setLiked] = useState(post.liked);
+  const [reposted, setReposted] = useState(post.reposted);
+  const [quoteBusy, setQuoteBusy] = useState(false);
+
+  async function toggle(type: "like" | "repost") {
+    const result = await api.interactWithPost(worldId, post.id, type);
+    if (type === "like") setLiked(result.active);
+    else setReposted(result.active);
+  }
+
+  async function quote() {
+    const content = window.prompt("Add a comment to your quote");
+    if (!content?.trim()) return;
+    setQuoteBusy(true);
+    try {
+      await api.createPost(worldId, content.trim(), undefined, post.id);
+      await onChanged();
+    } finally {
+      setQuoteBusy(false);
+    }
+  }
 
   return (
     <article className="border-b border-[#2f3336] px-4 py-5 transition-colors hover:bg-white/[0.03]">
@@ -563,9 +601,9 @@ function PostCard({ post, worldId }: { post: Post; worldId: number }) {
           <p className="mt-1 whitespace-pre-wrap text-[15px] leading-6">{post.content}</p>
           <div className="mt-4 flex max-w-md justify-between text-[#71767b]">
             <Link aria-label="Reply" className="group flex items-center gap-2 text-sm hover:text-[#1d9bf0]" href={`/worlds/${worldId}/status/${post.id}`}><span className="text-lg">◯</span><span>{post.replyCount}</span></Link>
-            <button aria-label="Repost" className={`group flex items-center gap-2 text-sm hover:text-[#00ba7c] ${reposted ? "text-[#00ba7c]" : ""}`} onClick={() => setReposted(!reposted)}><span className="text-lg">↻</span><span>{reposted ? 1 : 0}</span></button>
-            <button aria-label="Like" className={`group flex items-center gap-2 text-sm hover:text-[#f91880] ${liked ? "text-[#f91880]" : ""}`} onClick={() => setLiked(!liked)}><span className="text-lg">{liked ? "♥" : "♡"}</span><span>{post.likes + (liked ? 1 : 0)}</span></button>
-            <button aria-label="Share" className="text-lg hover:text-[#1d9bf0]">⌁</button>
+            <button aria-label="Repost" className={`group flex items-center gap-2 text-sm hover:text-[#00ba7c] ${reposted ? "text-[#00ba7c]" : ""}`} onClick={() => void toggle("repost")}><span className="text-lg">↻</span><span>{(post.repostCount ?? 0) + (reposted ? 1 : 0)}</span></button>
+            <button aria-label="Like" className={`group flex items-center gap-2 text-sm hover:text-[#f91880] ${liked ? "text-[#f91880]" : ""}`} onClick={() => void toggle("like")}><span className="text-lg">{liked ? "♥" : "♡"}</span><span>{post.likes + (liked ? 1 : 0)}</span></button>
+            <button aria-label="Quote post" className="text-lg hover:text-[#1d9bf0]" onClick={() => void quote()} disabled={quoteBusy}>⌁</button>
           </div>
         </div>
       </div>

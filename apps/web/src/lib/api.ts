@@ -68,16 +68,21 @@ export const api = {
     }),
   feed: (id: number, limit = 30) =>
     request<Post[]>(`/worlds/${id}/feed?limit=${limit}`),
-  createPost: (id: number, content: string, parentId?: number) =>
+  createPost: (id: number, content: string, parentId?: number, quotePostId?: number) =>
     request<{ world: World; post: Post; replies: Post[]; events: unknown[]; relationships: Relationship[]; durationMs?: number }>(
       `/worlds/${id}/posts`,
       {
         method: 'POST',
-        body: JSON.stringify({ content, parentId }),
+        body: JSON.stringify({ content, parentId, quotePostId }),
       },
     ),
   post: (id: number, postId: number) =>
     request<{ post: Post; replies: Post[] }>(`/worlds/${id}/posts/${postId}`),
+  interactWithPost: (id: number, postId: number, type: 'like' | 'repost') =>
+    request<{ active: boolean; type: string; repostCount: number; likeCount: number }>(
+      `/worlds/${id}/posts/${postId}/interactions`,
+      { method: 'POST', body: JSON.stringify({ type }) },
+    ),
   events: (id: number, limit = 20) =>
     request<WorldEvent[]>(`/worlds/${id}/events?limit=${limit}`),
   generateEvent: (id: number, type?: string, prompt?: string) =>

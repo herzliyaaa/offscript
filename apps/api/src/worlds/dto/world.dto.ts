@@ -113,6 +113,20 @@ export class CreatePostDto {
   @IsInt()
   @Min(1)
   parentId?: number;
+
+  @ApiPropertyOptional({ example: 12, description: 'Post to quote' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  quotePostId?: number;
+}
+
+export class PostInteractionDto {
+  @ApiProperty({ example: 'like', enum: ['like', 'repost'] })
+  @IsString()
+  @IsNotEmpty()
+  type!: 'like' | 'repost';
 }
 
 export class SendDmDto {
