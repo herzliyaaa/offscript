@@ -7,6 +7,8 @@ export const envValidationSchema = Joi.object({
 
   PORT: Joi.number().port().default(3001),
 
+  AI_PROVIDER: Joi.string().valid('ollama', 'deepseek').default('ollama'),
+
   DATABASE_URL: Joi.string()
     .uri({ scheme: ['postgres', 'postgresql'] })
     .required(),
@@ -28,4 +30,10 @@ export const envValidationSchema = Joi.object({
   OLLAMA_THINK: Joi.boolean().default(false),
 
   OLLAMA_KEEP_ALIVE: Joi.string().default('10m'),
+
+  DEEPSEEK_API_KEY: Joi.string().allow('').default(''),
+  DEEPSEEK_BASE_URL: Joi.string()
+    .uri({ scheme: ['http', 'https'] })
+    .default('https://api.deepseek.com'),
+  DEEPSEEK_MODEL: Joi.string().default('deepseek-chat'),
 });

@@ -2,13 +2,27 @@ export type Character = {
   id: number;
   name: string;
   handle: string;
+  avatarUrl: string | null;
+  gender: string | null;
   kind: 'player' | 'celebrity' | 'stan';
   role: string;
   bio: string;
+  additionalDescription: string | null;
+  followerCount: number;
   personality: string;
   publicPersona: string;
   voice: string;
   isPlayer: boolean;
+};
+
+export type UpdateCharacterInput = {
+  name?: string;
+  handle?: string;
+  avatarUrl?: string;
+  gender?: string;
+  bio?: string;
+  additionalDescription?: string;
+  followerCount?: number;
 };
 
 export type Relationship = {
@@ -144,6 +158,23 @@ export type CreateWorldInput = {
   scenarioKey: string;
   playerName: string;
   playerPersona?: string;
+  playerCelebrityKey?: string;
+  playerHandle?: string;
+  playerGender?: string;
+  playerAdditionalDescription?: string;
+  playerFollowerCount?: number;
+  playerAvatarUrl?: string;
   name?: string;
   userId?: number;
+};
+
+export type CelebrityPreset = {
+  key: string;
+  name: string;
+  handle: string;
+  gender: string;
+  role: string;
+  bio: string;
+  additionalDescription: string;
+  followerCount: number;
 };

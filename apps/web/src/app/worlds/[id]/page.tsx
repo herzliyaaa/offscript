@@ -1,9 +1,10 @@
 import { Suspense } from 'react';
 import WorldClient from './WorldClient';
+import LoadingState from '@/components/LoadingState';
 
 export default function Page() {
   return (
-    <Suspense fallback={<div className="p-8 text-zinc-400">Loading world…</div>}>
+    <Suspense fallback={<LoadingState label="Loading world…" />}>
       <WorldClient />
     </Suspense>
   );

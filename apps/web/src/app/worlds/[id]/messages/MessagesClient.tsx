@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import ThemeToggle from "@/components/ThemeToggle";
+import LoadingState from "@/components/LoadingState";
 import type { Conversation, DirectMessage, World } from "@/lib/types";
 
 function initials(name: string) {
@@ -87,7 +88,7 @@ export default function MessagesClient() {
     }
   }
 
-  if (!world) return <main className="min-h-screen bg-[#0f1419] p-8 text-[#71767b]">Loading messages…</main>;
+  if (!world) return <LoadingState label="Loading messages…" />;
   const conversation = conversations.find((item) => item.character.id === activeChar);
   const character = conversation?.character;
 
@@ -121,7 +122,7 @@ export default function MessagesClient() {
                   {typingChar === activeChar && <div className="mb-3 w-fit rounded-2xl bg-[#202327] px-4 py-2 text-sm text-[#71767b]" aria-live="polite">{character.name} is typing <span className="animate-pulse">•••</span></div>}
                   <div ref={endRef} />
                 </div>
-                <div className="border-t border-[#2f3336] p-3"><div className="flex gap-2 rounded-full bg-[#202327] p-1.5"><input className="min-w-0 flex-1 bg-transparent px-4 outline-none" value={dmText} onChange={(event) => setDmText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") submitDm(); }} placeholder="Start a new message" disabled={busy} /><button className="rounded-full bg-[#1d9bf0] px-5 py-2 font-bold disabled:opacity-50" onClick={submitDm} disabled={busy || !dmText.trim()}>Send</button></div></div>
+                <div className="border-t border-[#2f3336] p-3"><div className="flex gap-2 rounded-full bg-[#202327] p-1.5"><input className="min-w-0 flex-1 bg-transparent px-4 outline-none" value={dmText} onChange={(event) => setDmText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") submitDm(); }} placeholder="Start a new message" disabled={busy} /><button className="flex min-w-16 items-center justify-center gap-2 rounded-full bg-[#1d9bf0] px-5 py-2 font-bold disabled:opacity-50" onClick={submitDm} disabled={busy || !dmText.trim()}>{busy && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden="true" />} {busy ? "Sending" : "Send"}</button></div></div>
               </> : <div className="grid flex-1 place-items-center p-8 text-center text-[#71767b]">Select a conversation to start messaging.</div>}
             </div>
           </div>

@@ -26,7 +26,9 @@ import type {
   CreateWorldDto,
   GenerateEventDto,
   SendDmDto,
+  UpdateCharacterDto,
 } from './dto/world.dto.js';
+import { CELEBRITY_PRESETS, findCelebrityPreset } from './celebrity.presets.js';
 import {
   buildDmPrompt,
   buildEventPrompt,
@@ -63,7 +65,11 @@ import type {
   RelationshipContext,
   RelationshipStatus,
   WorldState,
+  AvatarUpload,
 } from './world.types.js';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import {
   clamp,
   normalizeFeedKind,
@@ -118,14 +124,48 @@ export class WorldsService {
     private readonly ai: AiService,
   ) {}
 
+  async saveAvatar(
+    file: AvatarUpload | undefined,
+    publicOrigin: string,
+  ) {
+    if (!file) {
+      throw new BadRequestException('An avatar image is required.');
+    }
+
+    const extensions: Record<string, string> = {
+      'image/jpeg': '.jpg',
+      'image/png': '.png',
+      'image/webp': '.webp',
+      'image/gif': '.gif',
+    };
+    const extension = extensions[file.mimetype];
+    if (!extension) {
+      throw new BadRequestException('Avatar must be a JPEG, PNG, WebP, or GIF image.');
+    }
+    if (file.size > 1_500_000) {
+      throw new BadRequestException('Avatar must be smaller than 1.5 MB.');
+    }
+
+    const directory = path.resolve(process.cwd(), 'avatars');
+    await mkdir(directory, { recursive: true });
+    const filename = `${randomUUID()}${extension}`;
+    await writeFile(path.join(directory, filename), file.buffer);
+
+    return { url: `${publicOrigin}/avatars/${filename}` };
+  }
+
   async create(dto: CreateWorldDto) {
     const template = this.getScenario(dto.scenarioKey);
+    const preset = findCelebrityPreset(dto.playerCelebrityKey);
+    const playerName = preset?.name ?? dto.playerName;
+    const playerHandle = preset?.handle ?? dto.playerHandle;
+    const playerPersona = dto.playerPersona ?? preset?.bio;
 
     const aiStartedAt = Date.now();
     const generated = await this.ai.generateObject<GeneratedWorld>(
       buildWorldGenerationPrompt(template, {
-        playerName: dto.playerName,
-        playerPersona: dto.playerPersona,
+        playerName,
+        playerPersona,
         worldName: dto.name,
       }),
       buildWorldSchema(template),
@@ -146,11 +186,11 @@ export class WorldsService {
       template.title;
 
     const usedHandles = new Set<string>();
-    const playerHandle = uniqueHandle(undefined, dto.playerName, usedHandles);
+    const resolvedPlayerHandle = uniqueHandle(playerHandle, playerName, usedHandles);
     const cast = (generated.cast ?? [])
       .filter((member) => member.name?.trim())
       .slice(0, 5);
-    const stanSeeds = buildStanAccounts(dto.playerName, usedHandles);
+    const stanSeeds = buildStanAccounts(playerName, usedHandles);
 
     const created = await this.db.transaction(async (tx) => {
       const [world] = await tx
@@ -159,7 +199,7 @@ export class WorldsService {
           userId: dto.userId ?? null,
           name: worldName,
           scenarioKey: template.key,
-          playerName: dto.playerName,
+          playerName,
           turn: 0,
           state,
         })
@@ -169,16 +209,22 @@ export class WorldsService {
         .insert(schema.characters)
         .values({
           worldId: world.id,
-          name: dto.playerName,
-          handle: playerHandle,
+          name: playerName,
+          handle: resolvedPlayerHandle,
+          avatarUrl: dto.playerAvatarUrl ?? null,
+          gender: dto.playerGender ?? preset?.gender ?? null,
           kind: 'player',
-          role: template.playerRole,
-          bio: dto.playerPersona ?? `The player of ${template.title}.`,
+          role: preset?.role ?? template.playerRole,
+          bio: playerPersona ?? `The player of ${template.title}.`,
+          additionalDescription:
+            dto.playerAdditionalDescription ?? preset?.additionalDescription ?? null,
+          followerCount: dto.playerFollowerCount ?? preset?.followerCount ?? 0,
           persona: {
             personality:
-              dto.playerPersona ??
+              playerPersona ??
+              preset?.personality ??
               'Driven, observant, and still learning the rules.',
-            publicPersona: dto.playerPersona ?? template.playerRole,
+            publicPersona: playerPersona ?? preset?.publicPersona ?? template.playerRole,
             secret: 'Only you know what you are willing to sacrifice.',
             voice: 'Your own.',
           },
@@ -285,6 +331,51 @@ export class WorldsService {
       .from(schema.worlds)
       .where(userId ? eq(schema.worlds.userId, userId) : undefined)
       .orderBy(desc(schema.worlds.updatedAt));
+  }
+
+  listCelebrityPresets() {
+    return CELEBRITY_PRESETS.map(({ personality, publicPersona, voice, ...preset }) => preset);
+  }
+
+  async updateCharacter(worldId: number, characterId: number, dto: UpdateCharacterDto) {
+    await this.ensureWorld(worldId);
+    const [character] = await this.db
+      .select()
+      .from(schema.characters)
+      .where(
+        and(
+          eq(schema.characters.worldId, worldId),
+          eq(schema.characters.id, characterId),
+        ),
+      );
+
+    if (!character) {
+      throw new NotFoundException(`Character ${characterId} not found in world ${worldId}`);
+    }
+
+    const [updated] = await this.db
+      .update(schema.characters)
+      .set({
+        name: dto.name?.trim() || character.name,
+        handle: dto.handle?.trim() || character.handle,
+        gender: dto.gender ?? character.gender,
+        bio: dto.bio ?? character.bio,
+        additionalDescription:
+          dto.additionalDescription ?? character.additionalDescription,
+        followerCount: dto.followerCount ?? character.followerCount,
+        avatarUrl: dto.avatarUrl ?? character.avatarUrl,
+      })
+      .where(eq(schema.characters.id, characterId))
+      .returning();
+
+    if (updated.isPlayer && updated.name !== (await this.ensureWorld(worldId)).playerName) {
+      await this.db
+        .update(schema.worlds)
+        .set({ playerName: updated.name, updatedAt: new Date() })
+        .where(eq(schema.worlds.id, worldId));
+    }
+
+    return this.publicCharacter(updated);
   }
 
   async get(id: number) {
@@ -1304,9 +1395,13 @@ export class WorldsService {
       id: character.id,
       name: character.name,
       handle: character.handle,
+      avatarUrl: character.avatarUrl,
+      gender: character.gender,
       kind: character.kind,
       role: character.role,
       bio: character.bio,
+      additionalDescription: character.additionalDescription,
+      followerCount: character.followerCount,
       personality: character.persona.personality,
       publicPersona: character.persona.publicPersona,
       voice: character.persona.voice,

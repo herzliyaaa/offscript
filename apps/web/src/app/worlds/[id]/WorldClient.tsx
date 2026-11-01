@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import ThemeToggle from "@/components/ThemeToggle";
+import LoadingState from "@/components/LoadingState";
 import type { ActionOutcome, EventScenario, Post, World } from "@/lib/types";
 
 type Tab = "feed" | "events" | "cast";
@@ -146,11 +147,7 @@ export default function WorldPage() {
   }
 
   if (loading || !world) {
-    return (
-      <div className="p-8 text-zinc-600 dark:text-[#e7e9ea]">
-        Loading world…
-      </div>
-    );
+    return <LoadingState label="Loading world…" />;
   }
 
   const stats = world.state.playerStats;
@@ -204,10 +201,11 @@ export default function WorldPage() {
       )}
 
       {busy && (
-        <div className="flex items-center gap-3 rounded border border-[#1d9bf0]/40 bg-[#1d9bf0]/10 p-3 text-sm text-[#1d9bf0]">
-          <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-[#1d9bf0] border-t-transparent" />
-          AI is thinking… {elapsed}s (can take a minute or two)
-        </div>
+        <LoadingState
+          label="AI is thinking…"
+          detail={`${elapsed}s elapsed · this can take a minute or two`}
+          overlay
+        />
       )}
 
       {/* <section className="rounded border border-zinc-200 dark:border-[#38444d] bg-white dark:bg-[#192734] p-4 space-y-2">

@@ -27,6 +27,43 @@ export class CreateWorldDto {
   @MaxLength(1000)
   playerPersona?: string;
 
+  @ApiPropertyOptional({ example: 'sabrina-carpenter' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  playerCelebrityKey?: string;
+
+  @ApiPropertyOptional({ example: '@myhandle' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  playerHandle?: string;
+
+  @ApiPropertyOptional({ example: 'woman' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  playerGender?: string;
+
+  @ApiPropertyOptional({ example: 'A producer rebuilding her career after a public fallout.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  playerAdditionalDescription?: string;
+
+  @ApiPropertyOptional({ example: 120000 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  playerFollowerCount?: number;
+
+  @ApiPropertyOptional({ description: 'Data URL or hosted image URL for the player avatar' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2_000_000)
+  playerAvatarUrl?: string;
+
   @ApiPropertyOptional({ example: 'The Midnight Studio' })
   @IsOptional()
   @IsString()
@@ -104,6 +141,53 @@ export class GenerateEventDto {
   @IsString()
   @MaxLength(1000)
   prompt?: string;
+}
+
+export class UpdateCharacterDto {
+  @ApiPropertyOptional({ example: 'Mina Park' })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  name?: string;
+
+  @ApiPropertyOptional({ example: '@minapark' })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(50)
+  handle?: string;
+
+  @ApiPropertyOptional({ example: 'woman' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  gender?: string;
+
+  @ApiPropertyOptional({ example: 'A songwriter rebuilding her career.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  bio?: string;
+
+  @ApiPropertyOptional({ example: 'Writes at night and refuses to repeat old mistakes.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  additionalDescription?: string;
+
+  @ApiPropertyOptional({ example: 120000 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  followerCount?: number;
+
+  @ApiPropertyOptional({ description: 'Data URL or hosted image URL for the avatar' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2_000_000)
+  avatarUrl?: string;
 }
 
 export class ListEventsQueryDto {

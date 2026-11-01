@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import ThemeToggle from "@/components/ThemeToggle";
+import LoadingState from "@/components/LoadingState";
 import type { Post, World } from "@/lib/types";
 
 function initials(name: string) {
@@ -63,7 +64,7 @@ export default function TweetDetailClient() {
   }
 
   if (error && !world) return <main className="min-h-screen bg-[#0f1419] p-8 text-red-300">{error}</main>;
-  if (!world || !post) return <main className="min-h-screen bg-[#0f1419] p-8 text-[#71767b]">Loading post…</main>;
+  if (!world || !post) return <LoadingState label="Loading post…" />;
 
   return (
     <main className="min-h-screen bg-[#0f1419] text-[#e7e9ea]">
@@ -102,7 +103,7 @@ export default function TweetDetailClient() {
           <div className="border-b border-[#2f3336] p-4">
             <textarea className="w-full resize-none bg-transparent text-lg outline-none" rows={3} placeholder="Post your reply" value={reply} onChange={(event) => setReply(event.target.value)} disabled={busy} />
             <div className="flex justify-end">
-              <button className="rounded-full bg-[#1d9bf0] px-5 py-2 font-bold hover:bg-[#1a8cd8] disabled:opacity-50" onClick={submitReply} disabled={busy || !reply.trim()}>Reply</button>
+              <button className="flex items-center gap-2 rounded-full bg-[#1d9bf0] px-5 py-2 font-bold hover:bg-[#1a8cd8] disabled:opacity-50" onClick={submitReply} disabled={busy || !reply.trim()}>{busy && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden="true" />} {busy ? "Posting" : "Reply"}</button>
             </div>
           </div>
           {replies.map((item) => (

@@ -4,10 +4,12 @@ import type {
   CreateWorldInput,
   DirectMessage,
   ActionOutcome,
+  CelebrityPreset,
   EventScenario,
   Post,
   Relationship,
   Scenario,
+  UpdateCharacterInput,
   World,
   WorldEvent,
 } from './types';
@@ -32,14 +34,36 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function uploadAvatar(file: File): Promise<string> {
+  const form = new FormData();
+  form.append('avatar', file);
+  const res = await fetch(`${API_BASE}/worlds/avatars`, {
+    method: 'POST',
+    body: form,
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `Avatar upload failed: ${res.status}`);
+  }
+  const result = (await res.json()) as { url: string };
+  return result.url;
+}
+
 export const api = {
   scenarios: () => request<Scenario[]>('/scenarios'),
   scenario: (key: string) => request<Scenario>(`/scenarios/${key}`),
   worlds: () => request<World[]>('/worlds'),
+  celebrityPresets: () => request<CelebrityPreset[]>('/worlds/celebrity-presets'),
+  uploadAvatar,
   world: (id: number) => request<World>(`/worlds/${id}`),
   createWorld: (input: CreateWorldInput) =>
     request<World & { durationMs?: number }>('/worlds', {
       method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  updateCharacter: (worldId: number, characterId: number, input: UpdateCharacterInput) =>
+    request<Character>(`/worlds/${worldId}/characters/${characterId}`, {
+      method: 'PATCH',
       body: JSON.stringify(input),
     }),
   feed: (id: number, limit = 30) =>

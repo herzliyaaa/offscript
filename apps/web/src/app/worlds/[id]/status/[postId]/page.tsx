@@ -1,9 +1,10 @@
 import { Suspense } from "react";
 import TweetDetailClient from "./TweetDetailClient";
+import LoadingState from "@/components/LoadingState";
 
 export default function TweetDetailPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-zinc-400">Loading post…</div>}>
+    <Suspense fallback={<LoadingState label="Loading post…" />}>
       <TweetDetailClient />
     </Suspense>
   );

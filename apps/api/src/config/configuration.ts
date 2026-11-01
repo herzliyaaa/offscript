@@ -2,6 +2,7 @@ export default () => ({
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: Number(process.env.PORT ?? 3001),
   ai: {
+    provider: process.env.AI_PROVIDER ?? 'ollama',
     host: process.env.OLLAMA_HOST ?? 'http://127.0.0.1:11434',
     model: process.env.OLLAMA_MODEL ?? 'qwen3.5:4b',
     fastModel: process.env.OLLAMA_FAST_MODEL ?? 'qwen3:1.7b',
@@ -10,5 +11,8 @@ export default () => ({
     numCtx: Number(process.env.OLLAMA_NUM_CTX ?? 8192),
     think: process.env.OLLAMA_THINK === 'true',
     keepAlive: process.env.OLLAMA_KEEP_ALIVE ?? '10m',
+    deepseekApiKey: process.env.DEEPSEEK_API_KEY ?? '',
+    deepseekBaseUrl: process.env.DEEPSEEK_BASE_URL ?? 'https://api.deepseek.com',
+    deepseekModel: process.env.DEEPSEEK_MODEL ?? 'deepseek-chat',
   },
 });

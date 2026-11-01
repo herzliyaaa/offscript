@@ -7,6 +7,12 @@ export type RelationshipStatus =
 
 export type DmSender = 'player' | 'character';
 
+export interface AvatarUpload {
+  buffer: Buffer;
+  mimetype: string;
+  size: number;
+}
+
 export interface CharacterPersona {
   personality: string;
   publicPersona: string;

@@ -9,6 +9,7 @@ import type { ChatRequest, Message, Ollama, Options } from 'ollama';
 import { OLLAMA } from './ai.provider.js';
 
 export type AiThinking = boolean | 'high' | 'medium' | 'low';
+type AiProvider = 'ollama' | 'deepseek';
 
 export interface AiChatOptions {
   model?: string;
@@ -38,11 +39,16 @@ export class AiService {
   private readonly numCtx: number;
   private readonly think: AiThinking;
   private readonly keepAlive: string | number;
+  private readonly provider: AiProvider;
+  private readonly deepseekApiKey: string;
+  private readonly deepseekBaseUrl: string;
+  private readonly deepseekModel: string;
 
   constructor(
     @Inject(OLLAMA) private readonly ollama: Ollama,
     config: ConfigService,
   ) {
+    this.provider = config.get<AiProvider>('ai.provider', 'ollama');
     this.model = config.get<string>('ai.model', 'qwen3.5:4b');
     this.fastModel = config.get<string>('ai.fastModel', 'qwen3:1.7b');
     this.embedModel = config.get<string>('ai.embedModel', 'nomic-embed-text');
@@ -50,20 +56,30 @@ export class AiService {
     this.numCtx = config.get<number>('ai.numCtx', 8192);
     this.think = config.get<AiThinking>('ai.think', false);
     this.keepAlive = config.get<string>('ai.keepAlive', '10m');
+    this.deepseekApiKey = config.get<string>('ai.deepseekApiKey', '');
+    this.deepseekBaseUrl = config.get<string>(
+      'ai.deepseekBaseUrl',
+      'https://api.deepseek.com',
+    );
+    this.deepseekModel = config.get<string>('ai.deepseekModel', 'deepseek-chat');
   }
 
   get modelName(): string {
-    return this.model;
+    return this.provider === 'deepseek' ? this.deepseekModel : this.model;
   }
 
   get fastModelName(): string {
-    return this.fastModel;
+    return this.provider === 'deepseek' ? this.deepseekModel : this.fastModel;
   }
 
   async chat(
     messages: Message[],
     options: AiChatOptions = {},
   ): Promise<string> {
+    if (this.provider === 'deepseek') {
+      return this.deepseekChat(messages, options);
+    }
+
     const request: ChatRequest & { stream: true } = {
       model: options.model ?? this.model,
       messages: options.system
@@ -158,6 +174,11 @@ export class AiService {
   }
 
   async embed(input: string | string[]): Promise<number[][]> {
+    if (this.provider === 'deepseek') {
+      throw new ServiceUnavailableException(
+        'DeepSeek does not provide embeddings through this integration. Select Ollama for embedding features.',
+      );
+    }
     try {
       const response = await this.ollama.embed({
         model: this.embedModel,
@@ -177,6 +198,10 @@ export class AiService {
   }
 
   async listModels(): Promise<string[]> {
+    if (this.provider === 'deepseek') {
+      return [this.deepseekModel];
+    }
+
     try {
       const response = await this.ollama.list();
       return response.models.map((model) => model.name);
@@ -190,6 +215,15 @@ export class AiService {
   }
 
   async health(): Promise<AiHealth> {
+    if (this.provider === 'deepseek') {
+      return {
+        status: this.deepseekApiKey ? 'ok' : 'degraded',
+        model: this.deepseekModel,
+        modelLoaded: Boolean(this.deepseekApiKey),
+        models: [this.deepseekModel],
+      };
+    }
+
     const models = await this.listModels();
     const modelLoaded = models.some(
       (name) => name === this.model || name === `${this.model}:latest`,
@@ -214,16 +248,93 @@ export class AiService {
     } catch {
       const start = cleaned.indexOf('{');
       const end = cleaned.lastIndexOf('}');
-
-      if (start !== -1 && end > start) {
-        try {
-          return JSON.parse(cleaned.slice(start, end + 1)) as T;
-        } catch {
-          return undefined;
-        }
+      if (start === -1 || end <= start) {
+        return undefined;
       }
 
-      return undefined;
+      try {
+        return JSON.parse(cleaned.slice(start, end + 1)) as T;
+      } catch {
+        return undefined;
+      }
+    }
+  }
+
+  private async deepseekChat(
+    messages: Message[],
+    options: AiChatOptions,
+  ): Promise<string> {
+    if (!this.deepseekApiKey) {
+      throw new ServiceUnavailableException(
+        'DEEPSEEK_API_KEY is required when AI_PROVIDER=deepseek.',
+      );
+    }
+
+    const baseMessages = options.system
+      ? [{ role: 'system', content: options.system }, ...messages]
+      : messages;
+    const requestMessages = options.format
+      ? baseMessages.map((message, index) =>
+          index === baseMessages.length - 1
+            ? {
+                ...message,
+                content: `${message.content}\n\nReturn JSON matching this schema exactly:\n${typeof options.format === 'string' ? options.format : JSON.stringify(options.format)}`,
+              }
+            : message,
+        )
+      : baseMessages;
+    const body: Record<string, unknown> = {
+      model: options.model ?? this.deepseekModel,
+      messages: requestMessages,
+      temperature: options.temperature ?? this.temperature,
+    };
+
+    if (options.maxTokens !== undefined) {
+      body.max_tokens = options.maxTokens;
+    }
+    if (options.format) {
+      body.response_format = { type: 'json_object' };
+    }
+
+    try {
+      const startedAt = Date.now();
+      const response = await fetch(`${this.deepseekBaseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.deepseekApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(`${response.status}: ${detail}`);
+      }
+
+      const result = (await response.json()) as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+      const content = result.choices?.[0]?.message?.content;
+      if (!content) {
+        throw new Error('DeepSeek returned an empty response');
+      }
+
+      this.logger.log(
+        `DeepSeek chat completed in ${Date.now() - startedAt}ms (model: ${body.model})`,
+      );
+      return this.cleanContent(content);
+    } catch (error) {
+      this.logger.error(
+        `DeepSeek chat failed for model "${this.deepseekModel}"`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      if (error instanceof ServiceUnavailableException) {
+        throw error;
+      }
+      throw new ServiceUnavailableException(
+        `DeepSeek model "${this.deepseekModel}" is unavailable.`,
+      );
     }
   }
 

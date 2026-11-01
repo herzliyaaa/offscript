@@ -4,10 +4,16 @@ import {
   DefaultValuePipe,
   Get,
   Param,
+  Patch,
   ParseIntPipe,
   Post,
   Query,
+  Req,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Request } from 'express';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   CreatePostDto,
@@ -17,14 +23,26 @@ import {
   ListEventsQueryDto,
   ListWorldsQueryDto,
   SendDmDto,
+  UpdateCharacterDto,
   WorldActionDto,
 } from './dto/world.dto.js';
 import { WorldsService } from './worlds.service.js';
+import type { AvatarUpload } from './world.types.js';
 
 @ApiTags('worlds')
 @Controller('worlds')
 export class WorldsController {
   constructor(private readonly worlds: WorldsService) {}
+
+  @Post('avatars')
+  @UseInterceptors(FileInterceptor('avatar'))
+  @ApiOperation({ summary: 'Upload a local avatar image' })
+  uploadAvatar(
+    @UploadedFile() file: AvatarUpload | undefined,
+    @Req() request: Request,
+  ) {
+    return this.worlds.saveAvatar(file, `${request.protocol}://${request.get('host')}`);
+  }
 
   @Post()
   @ApiOperation({ summary: 'Create a world from a scenario template' })
@@ -38,12 +56,28 @@ export class WorldsController {
     return this.worlds.list(query.userId);
   }
 
+  @Get('celebrity-presets')
+  @ApiOperation({ summary: 'List recognizable celebrity identity presets' })
+  celebrityPresets() {
+    return this.worlds.listCelebrityPresets();
+  }
+
   @Get(':id')
   @ApiOperation({
     summary: 'Get a world with its cast, feed, events, and relationships',
   })
   get(@Param('id', ParseIntPipe) id: number) {
     return this.worlds.get(id);
+  }
+
+  @Patch(':id/characters/:characterId')
+  @ApiOperation({ summary: 'Update a character profile' })
+  updateCharacter(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('characterId', ParseIntPipe) characterId: number,
+    @Body() dto: UpdateCharacterDto,
+  ) {
+    return this.worlds.updateCharacter(id, characterId, dto);
   }
 
   @Get(':id/feed')

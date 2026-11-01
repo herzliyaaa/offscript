@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { api } from "@/lib/api";
 import type { World } from "@/lib/types";
+import LoadingState from "@/components/LoadingState";
 
 export default function EventHistoryPage() {
   const params = useParams<{ id: string }>();
@@ -25,7 +26,7 @@ export default function EventHistoryPage() {
   }
 
   if (!world) {
-    return <main className="min-h-screen bg-[#0f1419] p-8 text-[#71767b]">Loading event history…</main>;
+    return <LoadingState label="Loading event history…" />;
   }
 
   return (
