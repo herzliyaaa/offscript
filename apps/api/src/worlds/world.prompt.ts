@@ -132,3 +132,43 @@ export function buildTurnPrompt(
     '- Return ONLY JSON. No markdown, no commentary.',
   ].join('\n');
 }
+
+export function buildEventScenariosPrompt(
+  template: ScenarioTemplate,
+  world: {
+    playerName: string;
+    turn: number;
+    state: WorldState;
+  },
+  player: { name: string; handle: string },
+  actors: ActorContext[],
+  relationships: RelationshipContext[],
+): string {
+  return [
+    'Create one playable event scenario for the next turn of Offscript.',
+    '',
+    `SCENARIO: ${template.title} — ${template.setting}`,
+    `PLAYER: ${world.playerName} (${player.handle}, ${template.playerRole})`,
+    `CURRENT TURN: ${world.turn}`,
+    `WORLD SUMMARY: ${world.state.summary}`,
+    `CURRENT SCENE: ${world.state.currentScene}`,
+    `PLAYER STATS: ${JSON.stringify(world.state.playerStats)}`,
+    '',
+    'RELATIONSHIPS:',
+    relationshipLines(relationships),
+    '',
+    'SOCIAL ACCOUNTS:',
+    actors.map(actorLine).join('\n'),
+    '',
+    'Rules:',
+    '- Create one emotionally specific scenario involving career, relationships, reputation, money, or a personal dilemma.',
+    '- sourceName and sourceHandle must identify the account most directly involved, using an exact name and @handle from the social accounts above.',
+    '- context should be a short social-media-style line such as "sent you a private invitation", "mentioned you in a post", or "called with unexpected news". Do not use category names.',
+    '- Use the exact @handles above in the descriptions. Write directly to the player using "you".',
+    '- The description should be 2-4 vivid paragraphs with concrete details, character motivations, tension, and a meaningful decision point.',
+    '- Include exactly 3 detailed choices. Each choice should explain what the player says or does and the emotional or practical risk of that response.',
+    '- label is a concise button heading. action is a complete first-person response that can be sent to the simulation.',
+    '- Do not resolve the scenario in the description. Never use real celebrities.',
+    '- Return ONLY JSON matching the requested schema.',
+  ].join('\n');
+}

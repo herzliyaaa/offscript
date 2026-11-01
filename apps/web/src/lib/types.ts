@@ -50,6 +50,40 @@ export type WorldEvent = {
   createdAt: string;
 };
 
+export type EventChoice = {
+  label: string;
+  action: string;
+};
+
+export type EventScenario = {
+  id: string;
+  type: string;
+  sourceName: string;
+  sourceHandle: string;
+  context: string;
+  title: string;
+  description: string;
+  choices: EventChoice[];
+};
+
+export type ActionOutcome = {
+  world: World;
+  turn: number;
+  narration: string;
+  posts: Post[];
+  statChanges: Record<string, number>;
+  relationshipChanges: Array<{
+    character: string;
+    delta: number;
+    status?: string;
+    note: string;
+  }>;
+  newGoals: string[];
+  events: unknown[];
+  relationships: Relationship[];
+  durationMs?: number;
+};
+
 export type World = {
   id: number;
   userId: number | null;

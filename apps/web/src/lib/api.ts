@@ -3,6 +3,8 @@ import type {
   Conversation,
   CreateWorldInput,
   DirectMessage,
+  ActionOutcome,
+  EventScenario,
   Post,
   Relationship,
   Scenario,
@@ -62,6 +64,11 @@ export const api = {
         body: JSON.stringify({ type, prompt }),
       },
     ),
+  eventScenarios: (id: number) =>
+    request<{ scenario: EventScenario; durationMs?: number }>(
+      `/worlds/${id}/event-scenarios`,
+      { method: 'POST' },
+    ),
   conversations: (id: number) =>
     request<Conversation[]>(`/worlds/${id}/conversations`),
   dms: (id: number, characterId: number, limit = 100) =>
@@ -81,18 +88,7 @@ export const api = {
       body: JSON.stringify({ content }),
     }),
   act: (id: number, action: string) =>
-    request<{
-      world: World;
-      turn: number;
-      narration: string;
-      posts: Post[];
-      statChanges: Record<string, number>;
-      relationshipChanges: unknown[];
-      newGoals: string[];
-      events: unknown[];
-      relationships: Relationship[];
-      durationMs?: number;
-    }>(`/worlds/${id}/actions`, {
+    request<ActionOutcome>(`/worlds/${id}/actions`, {
       method: 'POST',
       body: JSON.stringify({ action }),
     }),

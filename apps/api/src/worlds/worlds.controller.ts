@@ -91,6 +91,12 @@ export class WorldsController {
     return this.worlds.generateEvent(id, dto);
   }
 
+  @Post(':id/event-scenarios')
+  @ApiOperation({ summary: 'Generate five personalized event scenarios with choices' })
+  generateEventScenarios(@Param('id', ParseIntPipe) id: number) {
+    return this.worlds.generateEventScenarios(id);
+  }
+
   @Get(':id/conversations')
   @ApiOperation({ summary: 'List DM conversations for a world' })
   listConversations(@Param('id', ParseIntPipe) id: number) {

@@ -78,6 +78,19 @@ export interface GeneratedEvent {
   title: string;
   description: string;
   type: string;
+  choices?: GeneratedEventChoice[];
+}
+
+export interface GeneratedEventChoice {
+  label: string;
+  action: string;
+}
+
+export interface GeneratedEventScenario extends GeneratedEvent {
+  sourceName: string;
+  sourceHandle: string;
+  context: string;
+  choices: GeneratedEventChoice[];
 }
 
 export interface GeneratedReaction {

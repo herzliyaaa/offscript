@@ -127,6 +127,9 @@ export function buildTurnSchema(template: ScenarioTemplate) {
             title: { type: 'string' },
             description: { type: 'string' },
             type: { type: 'string' },
+            sourceName: { type: 'string' },
+            sourceHandle: { type: 'string' },
+            context: { type: 'string' },
           },
           required: ['title', 'description', 'type'],
           additionalProperties: false,
@@ -142,6 +145,50 @@ export function buildTurnSchema(template: ScenarioTemplate) {
       'newGoals',
       'events',
     ],
+    additionalProperties: false,
+  };
+}
+
+const eventChoiceSchema = {
+  type: 'object',
+  properties: {
+    label: { type: 'string' },
+    action: { type: 'string' },
+  },
+  required: ['label', 'action'],
+  additionalProperties: false,
+};
+
+export function buildEventScenariosSchema() {
+  return {
+    type: 'object',
+    properties: {
+      scenario: {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+          description: { type: 'string' },
+          type: { type: 'string' },
+          choices: {
+            type: 'array',
+            minItems: 3,
+            maxItems: 3,
+            items: eventChoiceSchema,
+          },
+        },
+        required: [
+          'title',
+          'description',
+          'type',
+          'sourceName',
+          'sourceHandle',
+          'context',
+          'choices',
+        ],
+        additionalProperties: false,
+      },
+    },
+    required: ['scenario'],
     additionalProperties: false,
   };
 }

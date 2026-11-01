@@ -40,11 +40,16 @@ import {
 import { buildStanAccounts } from './stan.accounts.js';
 import {
   buildTurnPrompt,
+  buildEventScenariosPrompt,
   buildWorldGenerationPrompt,
   WORLD_SYSTEM_PROMPT,
   type RecentPostContext,
 } from './world.prompt.js';
-import { buildTurnSchema, buildWorldSchema } from './world.schema.js';
+import {
+  buildEventScenariosSchema,
+  buildTurnSchema,
+  buildWorldSchema,
+} from './world.schema.js';
 import type {
   ActorContext,
   GeneratedDmReply,
@@ -53,6 +58,7 @@ import type {
   GeneratedTurn,
   GeneratedWorld,
   GeneratedWorldEvent,
+  GeneratedEventScenario,
   RelationshipChange,
   RelationshipContext,
   RelationshipStatus,
@@ -769,6 +775,59 @@ export class WorldsService {
     return {
       ...result,
       relationships: await this.listRelationships(id),
+      durationMs: Date.now() - aiStartedAt,
+    };
+  }
+
+  async generateEventScenarios(id: number) {
+    const world = await this.ensureWorld(id);
+    const template = this.getScenario(world.scenarioKey);
+    const characters = await this.getCharacters(id);
+    const player = characters.find((character) => character.isPlayer);
+
+    if (!player) {
+      throw new NotFoundException('Player character not found');
+    }
+
+    const actors = characters.filter((character) => character.kind !== 'player');
+    const relationships = await this.relationshipContext(id);
+    const aiStartedAt = Date.now();
+    const generated = await this.ai.generateObject<{
+      scenario: GeneratedEventScenario;
+    }>(
+      buildEventScenariosPrompt(
+        template,
+        { playerName: world.playerName, turn: world.turn + 1, state: world.state },
+        { name: player.name, handle: player.handle },
+        this.toActorContexts(actors),
+        relationships,
+      ),
+      buildEventScenariosSchema(),
+      {
+        system: WORLD_SYSTEM_PROMPT,
+        temperature: 0.95,
+        numCtx: 4096,
+        maxTokens: 2400,
+      },
+    );
+
+    if (!generated.scenario || generated.scenario.choices.length < 3) {
+      throw new BadRequestException(
+        'The simulation did not produce a complete event scenario. Please try again.',
+      );
+    }
+
+    return {
+      scenario: {
+        id: `${id}-${world.turn}-${Date.now()}`,
+        type: generated.scenario.type || 'event',
+        sourceName: generated.scenario.sourceName,
+        sourceHandle: generated.scenario.sourceHandle,
+        context: generated.scenario.context,
+        title: generated.scenario.title,
+        description: generated.scenario.description,
+        choices: generated.scenario.choices.slice(0, 3),
+      },
       durationMs: Date.now() - aiStartedAt,
     };
   }
