@@ -17,6 +17,7 @@ import type { Request } from 'express';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   CreatePostDto,
+  CreateCharacterDto,
   CreateWorldDto,
   GenerateEventDto,
   ListDmsQueryDto,
@@ -79,6 +80,15 @@ export class WorldsController {
     @Body() dto: UpdateCharacterDto,
   ) {
     return this.worlds.updateCharacter(id, characterId, dto);
+  }
+
+  @Post(':id/characters')
+  @ApiOperation({ summary: 'Add a custom character to a world' })
+  createCharacter(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateCharacterDto,
+  ) {
+    return this.worlds.createCharacter(id, dto);
   }
 
   @Get(':id/feed')

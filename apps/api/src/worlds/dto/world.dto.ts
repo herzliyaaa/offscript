@@ -1,7 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsInt,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -27,11 +28,10 @@ export class CreateWorldDto {
   @MaxLength(1000)
   playerPersona?: string;
 
-  @ApiPropertyOptional({ example: 'sabrina-carpenter' })
+  @ApiPropertyOptional({ example: ['sabrina-carpenter', 'finneas'], type: [String] })
   @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  playerCelebrityKey?: string;
+  @IsString({ each: true })
+  associatedCelebrityKeys?: string[];
 
   @ApiPropertyOptional({ example: '@myhandle' })
   @IsOptional()
@@ -172,9 +172,17 @@ export class UpdateCharacterDto {
   @MaxLength(50)
   handle?: string;
 
-  @ApiPropertyOptional({ example: 'woman' })
+  @ApiPropertyOptional({ example: 'female', enum: ['female', 'male', 'nonbinary'] })
   @IsOptional()
   @IsString()
+  @Transform(({ value }) => {
+    const normalized = String(value).toLowerCase();
+    return normalized === 'woman' || normalized === 'girl' ? 'female'
+      : normalized === 'man' || normalized === 'boy' ? 'male'
+      : normalized === 'non-binary' ? 'nonbinary'
+      : normalized;
+  })
+  @IsIn(['female', 'male', 'nonbinary'])
   @MaxLength(64)
   gender?: string;
 
@@ -202,6 +210,50 @@ export class UpdateCharacterDto {
   @IsString()
   @MaxLength(2_000_000)
   avatarUrl?: string;
+}
+
+export class CreateCharacterDto {
+  @ApiProperty({ example: 'Alex Rivera' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  name!: string;
+
+  @ApiProperty({ example: '@alexrivera' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(50)
+  handle!: string;
+
+  @ApiProperty({ example: 'A new artist trying to break through.' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(1000)
+  bio!: string;
+
+  @ApiPropertyOptional({ example: 'Funny, ambitious, and always online.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  additionalDescription?: string;
+
+  @ApiProperty({ example: 'nonbinary', enum: ['female', 'male', 'nonbinary'] })
+  @IsString()
+  @IsIn(['female', 'male', 'nonbinary'])
+  @MaxLength(64)
+  gender!: string;
+
+  @ApiProperty({ example: 10000, enum: [1000, 5000, 10000, 50000, 100000, 500000, 1000000] })
+  @Type(() => Number)
+  @IsInt()
+  @IsIn([1000, 5000, 10000, 50000, 100000, 500000, 1000000])
+  followerCount!: number;
+
+  @ApiProperty({ description: 'Hosted image URL for the avatar' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(2048)
+  avatarUrl!: string;
 }
 
 export class ListEventsQueryDto {

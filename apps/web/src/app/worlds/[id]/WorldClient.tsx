@@ -6,6 +6,9 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import ThemeToggle from "@/components/ThemeToggle";
 import LoadingState from "@/components/LoadingState";
+import AvatarPicker from "@/components/AvatarPicker";
+import OptionPills from "@/components/OptionPills";
+import { followerOptions, genderOptions } from "@/components/characterOptions";
 import type { ActionOutcome, EventScenario, Post, World } from "@/lib/types";
 
 type Tab = "feed" | "events" | "cast";
@@ -39,6 +42,18 @@ export default function WorldPage() {
   const [customResponse, setCustomResponse] = useState("");
   const [eventOutcome, setEventOutcome] = useState<ActionOutcome | null>(null);
   const [editingScenario, setEditingScenario] = useState(false);
+  const [addingCharacter, setAddingCharacter] = useState(false);
+  const [characterDraft, setCharacterDraft] = useState({
+    name: "",
+    handle: "",
+    bio: "",
+    additionalDescription: "",
+    gender: "female" as "female" | "male" | "nonbinary",
+    followerCount: 1000,
+  });
+  const [characterAvatarFile, setCharacterAvatarFile] = useState<File | null>(null);
+  const [characterAvatarPreview, setCharacterAvatarPreview] = useState("");
+  const [handleEdited, setHandleEdited] = useState(false);
 
   const loadWorld = useCallback(async () => {
     try {
@@ -144,6 +159,27 @@ export default function WorldPage() {
     setEventOutcome(null);
     setCustomResponse("");
     setEditingScenario(false);
+  }
+
+  async function addCharacter() {
+    if (!characterDraft.name.trim() || !characterDraft.handle.trim() || !characterDraft.bio.trim() || !characterAvatarFile) return;
+    await run(async () => {
+      const avatarUrl = await api.uploadAvatar(characterAvatarFile);
+      await api.createCharacter(id, { ...characterDraft, avatarUrl });
+      setCharacterDraft({
+        name: "",
+        handle: "",
+        bio: "",
+        additionalDescription: "",
+        gender: "female",
+        followerCount: 1000,
+      });
+      setCharacterAvatarFile(null);
+      setCharacterAvatarPreview("");
+      setHandleEdited(false);
+      setAddingCharacter(false);
+      await loadWorld();
+    });
   }
 
   if (loading || !world) {
@@ -338,18 +374,7 @@ export default function WorldPage() {
           )}
           {eventScenario && !eventOutcome && (
             <article className="rounded-2xl border border-[#38444d] bg-[#192734] p-5 shadow-2xl shadow-black/20">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#1d9bf0] to-[#7856ff] font-bold">
-                    {initials(eventScenario.sourceName || "Offscript")}
-                  </div>
-                  <div>
-                    <div className="font-bold">{eventScenario.sourceName || "An unexpected message"}</div>
-                    <div className="text-sm text-[#71767b]">
-                      {eventScenario.sourceHandle || ""} {eventScenario.context || "sent you something unexpected"}
-                    </div>
-                  </div>
-                </div>
+              <div className="flex items-start justify-end gap-3">
                 <button
                   className="rounded-full border border-[#536471] px-4 py-1.5 text-sm font-bold hover:border-[#1d9bf0] disabled:opacity-50"
                   onClick={rerollScenario}
@@ -455,6 +480,69 @@ export default function WorldPage() {
               <div className="mt-1 font-medium">{world.player.name}</div>
               <div className="text-xs text-zinc-500">{world.player.handle} · View your X profile →</div>
             </Link>
+          )}
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold">People in this world</h2>
+            <button className="rounded-full bg-[#1d9bf0] px-4 py-2 text-sm font-bold" onClick={() => setAddingCharacter((current) => !current)}>
+              {addingCharacter ? "Cancel" : "Add character"}
+            </button>
+          </div>
+          {addingCharacter && (
+            <section className="rounded-2xl border border-[#38444d] bg-[#192734] p-4">
+              <h3 className="font-bold">Create a custom character</h3>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <AvatarPicker
+                    id="custom-character-avatar"
+                    preview={characterAvatarPreview}
+                    required
+                    onChange={(file, preview) => {
+                      setCharacterAvatarFile(file);
+                      setCharacterAvatarPreview(preview);
+                    }}
+                    onError={setError}
+                  />
+                </div>
+                {([
+                  ["name", "Name", "Taylor Kim"],
+                  ["handle", "Handle", "@taylorkim"],
+                  ["bio", "Bio", "A new artist with something to prove."],
+                  ["additionalDescription", "Additional description", "Funny, ambitious, and always online."],
+                ] as const).map(([field, label, placeholder]) => (
+                  <label className={field === "bio" || field === "additionalDescription" ? "space-y-1 sm:col-span-2" : "space-y-1"} key={field}>
+                    <span className="text-sm text-[#71767b]">{label}{field !== "additionalDescription" && <span className="text-red-400" aria-hidden="true"> *</span>}</span>
+                    {field === "bio" || field === "additionalDescription" ? (
+                      <textarea required={field !== "additionalDescription"} className="w-full rounded-xl border border-[#38444d] bg-[#101418] p-2 text-sm" placeholder={placeholder} value={characterDraft[field]} onChange={(event) => setCharacterDraft({ ...characterDraft, [field]: event.target.value })} rows={2} />
+                    ) : (
+                      <input required className="w-full rounded-xl border border-[#38444d] bg-[#101418] p-2 text-sm" placeholder={placeholder} value={characterDraft[field]} onChange={(event) => {
+                        const value = event.target.value;
+                        if (field === "handle") setHandleEdited(true);
+                        setCharacterDraft((current) => ({
+                          ...current,
+                          [field]: value,
+                          ...(field === "name" && !handleEdited ? { handle: `@${value.toLowerCase().replace(/[^a-z0-9]+/g, "")}` } : {}),
+                        }));
+                      }} />
+                    )}
+                  </label>
+                ))}
+                <OptionPills
+                  label="Gender"
+                  value={characterDraft.gender}
+                  required
+                  options={genderOptions}
+                  onChange={(gender) => setCharacterDraft((current) => ({ ...current, gender }))}
+                />
+                <OptionPills
+                  label="Followers"
+                  value={characterDraft.followerCount}
+                  required
+                  options={followerOptions}
+                  onChange={(followerCount) => setCharacterDraft((current) => ({ ...current, followerCount }))}
+                />
+              </div>
+              <button className="mt-4 rounded-full bg-[#1d9bf0] px-5 py-2 font-bold disabled:opacity-50" onClick={() => void addCharacter()} disabled={busy || !characterDraft.name.trim() || !characterDraft.handle.trim() || !characterDraft.bio.trim() || !characterAvatarFile}>Create character</button>
+            </section>
           )}
           <div className="grid gap-3 sm:grid-cols-2">
           {[...world.cast, ...world.stanAccounts].map((c) => {

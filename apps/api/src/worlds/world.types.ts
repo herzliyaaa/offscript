@@ -1,4 +1,4 @@
-export type CharacterKind = 'player' | 'celebrity' | 'stan';
+export type CharacterKind = 'player' | 'celebrity' | 'custom' | 'stan';
 
 export type PostKind = 'post' | 'reply' | 'quote' | 'headline' | 'dm';
 

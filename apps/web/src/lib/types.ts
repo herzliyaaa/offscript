@@ -4,7 +4,7 @@ export type Character = {
   handle: string;
   avatarUrl: string | null;
   gender: string | null;
-  kind: 'player' | 'celebrity' | 'stan';
+  kind: 'player' | 'celebrity' | 'custom' | 'stan';
   role: string;
   bio: string;
   additionalDescription: string | null;
@@ -23,6 +23,16 @@ export type UpdateCharacterInput = {
   bio?: string;
   additionalDescription?: string;
   followerCount?: number;
+};
+
+export type CreateCharacterInput = {
+  name: string;
+  handle: string;
+  bio: string;
+  additionalDescription?: string;
+  gender: 'female' | 'male' | 'nonbinary';
+  followerCount: number;
+  avatarUrl: string;
 };
 
 export type Relationship = {
@@ -186,7 +196,7 @@ export type CreateWorldInput = {
   scenarioKey: string;
   playerName: string;
   playerPersona?: string;
-  playerCelebrityKey?: string;
+  associatedCelebrityKeys?: string[];
   playerHandle?: string;
   playerGender?: string;
   playerAdditionalDescription?: string;

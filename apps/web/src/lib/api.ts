@@ -1,5 +1,6 @@
 import type {
   Character,
+  CreateCharacterInput,
   Conversation,
   CreateWorldInput,
   DirectMessage,
@@ -64,6 +65,11 @@ export const api = {
   updateCharacter: (worldId: number, characterId: number, input: UpdateCharacterInput) =>
     request<Character>(`/worlds/${worldId}/characters/${characterId}`, {
       method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
+  createCharacter: (worldId: number, input: CreateCharacterInput) =>
+    request<Character>(`/worlds/${worldId}/characters`, {
+      method: 'POST',
       body: JSON.stringify(input),
     }),
   feed: (id: number, limit = 30) =>

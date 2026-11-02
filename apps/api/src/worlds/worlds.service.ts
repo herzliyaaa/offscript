@@ -23,6 +23,7 @@ import { findScenario } from '../scenarios/scenario.catalog.js';
 import type { ScenarioTemplate } from '../scenarios/scenario.types.js';
 import type {
   CreatePostDto,
+  CreateCharacterDto,
   CreateWorldDto,
   GenerateEventDto,
   SendDmDto,
@@ -163,10 +164,12 @@ export class WorldsService {
 
   async create(dto: CreateWorldDto) {
     const template = this.getScenario(dto.scenarioKey);
-    const preset = findCelebrityPreset(dto.playerCelebrityKey);
-    const playerName = preset?.name ?? dto.playerName;
-    const playerHandle = preset?.handle ?? dto.playerHandle;
-    const playerPersona = dto.playerPersona ?? preset?.bio;
+    const playerName = dto.playerName;
+    const playerHandle = dto.playerHandle;
+    const playerPersona = dto.playerPersona;
+    const selectedCelebrities = (dto.associatedCelebrityKeys ?? [])
+      .map((key) => findCelebrityPreset(key))
+      .filter((preset): preset is NonNullable<typeof preset> => Boolean(preset));
 
     const aiStartedAt = Date.now();
     const generated = await this.ai.generateObject<GeneratedWorld>(
@@ -219,19 +222,18 @@ export class WorldsService {
           name: playerName,
           handle: resolvedPlayerHandle,
           avatarUrl: dto.playerAvatarUrl ?? null,
-          gender: dto.playerGender ?? preset?.gender ?? null,
+          gender: dto.playerGender ?? null,
           kind: 'player',
-          role: preset?.role ?? template.playerRole,
+          role: template.playerRole,
           bio: playerPersona ?? `The player of ${template.title}.`,
           additionalDescription:
-            dto.playerAdditionalDescription ?? preset?.additionalDescription ?? null,
-          followerCount: dto.playerFollowerCount ?? preset?.followerCount ?? 0,
+            dto.playerAdditionalDescription ?? null,
+          followerCount: dto.playerFollowerCount ?? 0,
           persona: {
             personality:
               playerPersona ??
-              preset?.personality ??
               'Driven, observant, and still learning the rules.',
-            publicPersona: playerPersona ?? preset?.publicPersona ?? template.playerRole,
+            publicPersona: playerPersona ?? template.playerRole,
             secret: 'Only you know what you are willing to sacrifice.',
             voice: 'Your own.',
           },
@@ -240,11 +242,23 @@ export class WorldsService {
         })
         .returning();
 
-      const castRows = cast.length
-        ? await tx
-            .insert(schema.characters)
-            .values(
-              cast.map((member) => ({
+        const selectedCast = selectedCelebrities.length
+          ? selectedCelebrities.map((preset) => ({
+              name: preset.name,
+              handle: preset.handle,
+              role: preset.role,
+              bio: preset.bio,
+              personality: preset.personality,
+              publicPersona: preset.publicPersona,
+              secret: 'Their public image is only part of the story.',
+              voice: preset.voice,
+            }))
+          : cast;
+        const castRows = selectedCast.length
+          ? await tx
+              .insert(schema.characters)
+              .values(
+                selectedCast.map((member) => ({
                 worldId: world.id,
                 name: this.clip(member.name, 255),
                 handle: uniqueHandle(member.handle, member.name, usedHandles),
@@ -385,6 +399,54 @@ export class WorldsService {
     return this.publicCharacter(updated);
   }
 
+  async createCharacter(worldId: number, dto: CreateCharacterDto) {
+    await this.ensureWorld(worldId);
+    const handle = dto.handle.trim().startsWith('@')
+      ? dto.handle.trim()
+      : `@${dto.handle.trim()}`;
+    const existing = await this.db
+      .select({ id: schema.characters.id })
+      .from(schema.characters)
+      .where(and(eq(schema.characters.worldId, worldId), eq(schema.characters.handle, handle)));
+    if (existing.length) {
+      throw new BadRequestException(`Handle ${handle} is already used in this world.`);
+    }
+
+    const [character] = await this.db
+      .insert(schema.characters)
+      .values({
+        worldId,
+        name: dto.name.trim(),
+        handle,
+        avatarUrl: dto.avatarUrl ?? null,
+        gender: dto.gender,
+        kind: 'custom',
+        role: dto.bio.trim().split(/[.!?]/)[0].slice(0, 255) || 'New connection',
+        bio: dto.bio.trim(),
+        additionalDescription: dto.additionalDescription?.trim() || null,
+        followerCount: dto.followerCount,
+        persona: {
+          personality: dto.additionalDescription?.trim() || 'Still figuring things out.',
+          publicPersona: dto.bio?.trim() || 'A new face in the world.',
+          secret: 'They have more going on than they let on.',
+          voice: 'Casual, direct, and conversational.',
+        },
+        stats: {},
+        isPlayer: false,
+      })
+      .returning();
+
+    await this.db.insert(schema.relationships).values({
+      worldId,
+      characterId: character.id,
+      level: 0,
+      status: 'neutral',
+      note: dto.additionalDescription?.trim() || 'A new connection in this world.',
+    });
+
+    return this.publicCharacter(character);
+  }
+
   async get(id: number) {
     const world = await this.ensureWorld(id);
 
@@ -403,7 +465,7 @@ export class WorldsService {
       ...world,
       player: player ? this.publicCharacter(player) : null,
       cast: characters
-        .filter((character) => character.kind === 'celebrity')
+        .filter((character) => character.kind === 'celebrity' || character.kind === 'custom')
         .map((character) => this.publicCharacter(character)),
       stanAccounts: characters
         .filter((character) => character.kind === 'stan')
@@ -1607,12 +1669,17 @@ export class WorldsService {
   }
 
   private publicCharacter(character: CharacterRow) {
+    const normalizedGender =
+      character.gender === 'woman' || character.gender === 'girl' ? 'female'
+        : character.gender === 'man' || character.gender === 'boy' ? 'male'
+        : character.gender === 'non-binary' ? 'nonbinary'
+        : character.gender;
     return {
       id: character.id,
       name: character.name,
       handle: character.handle,
       avatarUrl: character.avatarUrl,
-      gender: character.gender,
+      gender: normalizedGender,
       kind: character.kind,
       role: character.role,
       bio: character.bio,
