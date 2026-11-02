@@ -223,9 +223,17 @@ export default function CharacterProfilePage() {
                 <b>{character.followerCount.toLocaleString()}</b>{" "}
                 <span className="text-[#71767b]">Followers</span>
               </span>
-              <span>
-                <b>{relationship?.level ?? 0}</b>{" "}
-                <span className="text-[#71767b]">Relationship</span>
+              <span className="min-w-48">
+                <span className="flex items-center justify-between gap-3">
+                  <span className="text-[#71767b]">Relationship</span>
+                  <b className="capitalize">{relationship?.status ?? "neutral"} · {relationship?.level ?? 0}/100</b>
+                </span>
+                <span className="mt-2 block h-2 rounded-full bg-[#2f3336]">
+                  <span
+                    className={`block h-2 rounded-full ${(relationship?.level ?? 0) < 0 ? "bg-[#f91880]" : (relationship?.level ?? 0) >= 60 ? "bg-[#00ba7c]" : "bg-[#1d9bf0]"}`}
+                    style={{ width: `${Math.max(4, Math.min(100, ((relationship?.level ?? 0) + 100) / 2))}%` }}
+                  />
+                </span>
               </span>
             </div>
           </section>

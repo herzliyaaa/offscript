@@ -126,6 +126,17 @@ export type World = {
   events: WorldEvent[];
   relationships: Relationship[];
   relationshipMilestones: RelationshipMilestone[];
+  unreadNotifications: number;
+};
+
+export type Notification = {
+  id: number;
+  type: string;
+  title: string;
+  body: string;
+  href: string | null;
+  read: boolean;
+  createdAt: string;
 };
 
 export type RelationshipMilestone = {

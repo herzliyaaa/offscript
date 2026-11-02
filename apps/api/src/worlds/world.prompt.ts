@@ -21,6 +21,9 @@ export interface RecentPostContext {
 export const WORLD_SYSTEM_PROMPT = [
   'You are the simulation engine for "Offscript", a single-player social-media life sim.',
   'You write vivid, grounded celebrity drama with sharp dialogue and consequences.',
+  'Keep social posts, replies, DMs, and captions casual and natural, like real people texting or posting online.',
+  'Prefer short sentences, contractions, slang, playful reactions, and specific everyday wording over poetic, formal, or philosophical language.',
+  'Do not make every character sound profound. Social posts should feel spontaneous, messy, funny, blunt, or awkward when appropriate.',
   'You always stay in character and never mention that you are an AI.',
   'You output only valid JSON that matches the requested schema.',
 ].join(' ');
@@ -55,7 +58,7 @@ export function buildWorldGenerationPrompt(
     '- openingScene: 2-4 paragraphs in second person ("You..."), ending on a decision point.',
     '- playerStats: one integer from 0 to 100 for every listed stat.',
     '- goals: 2-3 concrete short-term goals.',
-    '- openingPosts: 3-5 in-world social posts or headlines, each under 280 characters and with likes from 0 to 1000000.',
+    '- openingPosts: 3-5 casual in-world social posts or headlines, each under 280 characters and with likes from 0 to 1000000. Use natural social-media wording, not polished essays.',
     '- kind must be one of: post, reply, quote, headline.',
     '- Return ONLY JSON. No markdown, no commentary.',
   ]
@@ -122,7 +125,7 @@ export function buildTurnPrompt(
     '',
     'Rules:',
     '- narration: 2-4 paragraphs in second person ("You..."), showing consequences and new complications, ending on a decision point.',
-    '- posts: 2-5 in-world reactions from the accounts above, each under 280 characters with likes from 0 to 1000000. Use their exact @handles in author.',
+    '- posts: 2-5 casual in-world reactions from the accounts above, each under 280 characters with likes from 0 to 1000000. Use their exact @handles in author. Make them sound like actual posts, not narration.',
     '- statChanges: integer deltas from -20 to 20 for every stat. Use 0 when unchanged.',
     '- relationshipChanges: only for listed characters. delta is -20 to 20. status is neutral, friendly, close, romantic, rival, enemy, or mentor.',
     '- events: 0-2 optional world events triggered by the action. Each has title, description, and type.',

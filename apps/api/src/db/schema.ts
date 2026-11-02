@@ -174,6 +174,17 @@ export const relationshipMilestones = pgTable('relationship_milestones', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const notifications = pgTable('notifications', {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  worldId: integer('world_id').notNull().references(() => worlds.id, { onDelete: 'cascade' }),
+  type: varchar({ length: 32 }).notNull(),
+  title: varchar({ length: 255 }).notNull(),
+  body: text().notNull(),
+  href: text(),
+  read: boolean().notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const directMessages = pgTable('direct_messages', {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   worldId: integer('world_id')

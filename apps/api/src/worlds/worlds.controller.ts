@@ -148,6 +148,18 @@ export class WorldsController {
     return this.worlds.listConversations(id);
   }
 
+  @Get(':id/notifications')
+  @ApiOperation({ summary: 'List world notifications' })
+  notifications(@Param('id', ParseIntPipe) id: number) {
+    return this.worlds.listNotifications(id);
+  }
+
+  @Patch(':id/notifications/read')
+  @ApiOperation({ summary: 'Mark world notifications as read' })
+  markNotificationsRead(@Param('id', ParseIntPipe) id: number) {
+    return this.worlds.markNotificationsRead(id);
+  }
+
   @Get(':id/conversations/:characterId')
   @ApiOperation({ summary: 'Get the DM history with a character' })
   listDms(

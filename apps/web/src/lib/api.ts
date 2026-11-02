@@ -83,6 +83,12 @@ export const api = {
       `/worlds/${id}/posts/${postId}/interactions`,
       { method: 'POST', body: JSON.stringify({ type }) },
     ),
+  notifications: (id: number) =>
+    request<{ notifications: import('./types').Notification[]; unreadCount: number }>(
+      `/worlds/${id}/notifications`,
+    ),
+  markNotificationsRead: (id: number) =>
+    request<{ updated: number }>(`/worlds/${id}/notifications/read`, { method: 'PATCH' }),
   events: (id: number, limit = 20) =>
     request<WorldEvent[]>(`/worlds/${id}/events?limit=${limit}`),
   generateEvent: (id: number, type?: string, prompt?: string) =>

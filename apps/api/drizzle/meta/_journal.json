@@ -36,6 +36,13 @@
       "when": 1793558282114,
       "tag": "0004_ambiguous_champions",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793559087065,
+      "tag": "0005_hard_ezekiel",
+      "breakpoints": true
     }
   ]
 }

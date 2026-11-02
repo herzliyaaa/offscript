@@ -159,6 +159,7 @@ export default function WorldPage() {
           <nav className="space-y-1">
             <button className="flex w-full items-center gap-4 rounded-full px-4 py-3 text-left text-lg font-bold hover:bg-white/10" onClick={() => setTab("feed")}>⌂ <span>Home</span></button>
             <button className="flex w-full items-center gap-4 rounded-full px-4 py-3 text-left text-lg hover:bg-white/10" onClick={() => setTab("feed")}># <span>Explore</span></button>
+            <Link className="block rounded-full px-4 py-3 text-lg hover:bg-white/10" href={`/worlds/${id}/notifications`}>♢ <span className="ml-3">Notifications</span>{world.unreadNotifications > 0 && <span className="ml-2 rounded-full bg-[#1d9bf0] px-2 py-0.5 text-xs">{world.unreadNotifications}</span>}</Link>
             <Link className="block rounded-full px-4 py-3 text-lg hover:bg-white/10" href={`/worlds/${id}/messages`}>✉ <span className="ml-3">Messages</span></Link>
             <button className="flex w-full items-center gap-4 rounded-full px-4 py-3 text-left text-lg hover:bg-white/10" onClick={() => setTab("cast")}>◎ <span>Profiles</span></button>
             <button className="flex w-full items-center gap-4 rounded-full px-4 py-3 text-left text-lg hover:bg-white/10" onClick={() => setTab("events")}>✦ <span>Events</span></button>
@@ -479,14 +480,12 @@ export default function WorldPage() {
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 text-xs">
                       <span className="text-zinc-500">Relationship</span>
-                      <span className="font-mono">{rel.level}</span>
-                      <span className="rounded bg-zinc-800 px-2 py-0.5 text-zinc-700 dark:text-[#e7e9ea]">
-                        {rel.status}
-                      </span>
+                      <span className="font-semibold capitalize">{rel.status}</span>
+                      <span className="text-zinc-500">{rel.level}/100</span>
                     </div>
                     <div className="h-1.5 w-full rounded bg-zinc-800">
                       <div
-                        className="h-1.5 rounded bg-blue-500"
+                        className={`h-1.5 rounded ${rel.level < 0 ? "bg-[#f91880]" : rel.level >= 60 ? "bg-[#00ba7c]" : "bg-[#1d9bf0]"}`}
                         style={{
                           width: `${Math.max(0, (rel.level + 100) / 2)}%`,
                         }}

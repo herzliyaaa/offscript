@@ -388,12 +388,13 @@ export class WorldsService {
   async get(id: number) {
     const world = await this.ensureWorld(id);
 
-    const [characters, feed, events, relationships, relationshipMilestones] = await Promise.all([
+    const [characters, feed, events, relationships, relationshipMilestones, unreadNotifications] = await Promise.all([
       this.getCharacters(id),
       this.getRecentPosts(id, MAX_FEED),
       this.listEvents(id, 10),
       this.listRelationships(id),
       this.listRelationshipMilestones(id),
+      this.countUnreadNotifications(id),
     ]);
 
     const player = characters.find((character) => character.isPlayer);
@@ -411,7 +412,40 @@ export class WorldsService {
       events,
       relationships,
       relationshipMilestones,
+      unreadNotifications,
     };
+  }
+
+  async listNotifications(worldId: number) {
+    await this.ensureWorld(worldId);
+    const rows = await this.db
+      .select({
+        id: schema.notifications.id,
+        type: schema.notifications.type,
+        title: schema.notifications.title,
+        body: schema.notifications.body,
+        href: schema.notifications.href,
+        read: schema.notifications.read,
+        createdAt: schema.notifications.createdAt,
+      })
+      .from(schema.notifications)
+      .where(eq(schema.notifications.worldId, worldId))
+      .orderBy(desc(schema.notifications.id))
+      .limit(50);
+    return {
+      notifications: rows,
+      unreadCount: rows.filter((notification) => !notification.read).length,
+    };
+  }
+
+  async markNotificationsRead(worldId: number) {
+    await this.ensureWorld(worldId);
+    const updated = await this.db
+      .update(schema.notifications)
+      .set({ read: true })
+      .where(and(eq(schema.notifications.worldId, worldId), eq(schema.notifications.read, false)))
+      .returning({ id: schema.notifications.id });
+    return { updated: updated.length };
   }
 
   async feed(id: number, limit = MAX_FEED) {
@@ -481,9 +515,23 @@ export class WorldsService {
       this.getRecentPosts(id, RECENT_FEED_FOR_AI),
       this.relationshipContext(id),
     ]);
-    const actors = characters.filter(
+    const allActors = characters.filter(
       (character) => character.kind !== 'player',
     );
+    const relatedHandles = new Set(
+      relationships.map((relationship) =>
+        relationship.handle.replace(/^@/, '').toLowerCase(),
+      ),
+    );
+    const actors = [
+      ...allActors.filter((actor) =>
+        relatedHandles.has(actor.handle.replace(/^@/, '').toLowerCase()),
+      ),
+      ...allActors.filter(
+        (actor) =>
+          !relatedHandles.has(actor.handle.replace(/^@/, '').toLowerCase()),
+      ),
+    ];
     const nextTurn = world.turn + 1;
 
     const aiStartedAt = Date.now();
@@ -496,9 +544,9 @@ export class WorldsService {
           state: world.state,
         },
         { name: player.name, handle: player.handle },
-        this.toActorContexts(actors),
-        relationships,
-        recent.map((post) => this.toRecentPost(post)),
+        this.toActorContexts(actors.slice(0, 8)),
+        relationships.slice(0, 8),
+        recent.slice(0, 5).map((post) => this.toRecentPost(post)),
         { content: dto.content, turn: nextTurn },
         parent
           ? { authorHandle: parent.authorHandle, content: parent.content }
@@ -509,10 +557,47 @@ export class WorldsService {
         model: this.ai.fastModelName,
         system: WORLD_SYSTEM_PROMPT,
         temperature: 0.9,
-        numCtx: 2048,
-        maxTokens: 768,
+        numCtx: 1536,
+        maxTokens: parent ? 512 : 640,
       },
     );
+
+    const relatedActors = actors.filter((actor) =>
+      relatedHandles.has(actor.handle.replace(/^@/, '').toLowerCase()),
+    );
+    const generatedReplies = [...(generated.replies ?? [])];
+    if (relatedActors.length > 0) {
+      const requiredRelatedReplies = Math.min(2, relatedActors.length);
+      for (let index = 0; index < requiredRelatedReplies; index += 1) {
+        const actor = relatedActors[index];
+        const hasReply = generatedReplies.some(
+          (reply) =>
+            reply.author.replace(/^@/, '').toLowerCase() ===
+            actor.handle.replace(/^@/, '').toLowerCase(),
+        );
+        if (!hasReply) {
+          const replacementIndex = generatedReplies.findIndex(
+            (reply) =>
+              !relatedHandles.has(
+                reply.author.replace(/^@/, '').toLowerCase(),
+              ),
+          );
+          if (replacementIndex >= 0) {
+            generatedReplies[replacementIndex] = {
+              ...generatedReplies[replacementIndex],
+              author: actor.handle,
+            };
+          } else {
+            generatedReplies.push({
+              author: actor.handle,
+              content: `wait, I saw this. we should talk lol`,
+              kind: 'reply',
+              likes: 0,
+            });
+          }
+        }
+      }
+    }
 
     const state = this.applyStatChanges(
       world.state,
@@ -552,7 +637,7 @@ export class WorldsService {
         tx,
         id,
         nextTurn,
-        generated.replies ?? [],
+        generatedReplies,
         actors,
         playerPost.id,
       );
@@ -745,9 +830,10 @@ export class WorldsService {
       buildDmSchema(),
       {
         system: WORLD_SYSTEM_PROMPT,
+        model: this.ai.fastModelName,
         temperature: 0.9,
-        numCtx: 4096,
-        maxTokens: 768,
+        numCtx: 2048,
+        maxTokens: 400,
       },
     );
 
@@ -774,6 +860,14 @@ export class WorldsService {
           turn: nextTurn,
         })
         .returning();
+
+      await tx.insert(schema.notifications).values({
+        worldId: id,
+        type: 'message',
+        title: `New message from ${character.name}`,
+        body: generated.reply,
+        href: `/worlds/${id}/messages`,
+      });
 
       await this.applyRelationshipChange(
         tx,
@@ -943,9 +1037,10 @@ export class WorldsService {
       buildEventScenariosSchema(),
       {
         system: WORLD_SYSTEM_PROMPT,
+        model: this.ai.fastModelName,
         temperature: 0.95,
-        numCtx: 4096,
-        maxTokens: 2400,
+        numCtx: 2048,
+        maxTokens: 1200,
       },
     );
 
@@ -1153,6 +1248,16 @@ export class WorldsService {
         meta: {},
       })),
     );
+
+    await tx.insert(schema.notifications).values(
+      valid.map((event) => ({
+        worldId,
+        type: 'event',
+        title: event.title?.trim() || 'A new world event',
+        body: event.description,
+        href: `/worlds/${worldId}?tab=events`,
+      })),
+    );
   }
 
   private applyStatChanges(
@@ -1262,6 +1367,13 @@ export class WorldsService {
         title: `${character.name} is now ${nextStatus}`,
         note: nextNote || `Your relationship with ${character.name} changed.`,
       });
+      await tx.insert(schema.notifications).values({
+        worldId,
+        type: 'relationship',
+        title: `${character.name} relationship update`,
+        body: `${existing.status} → ${nextStatus}. ${nextNote || `Your relationship with ${character.name} changed.`}`,
+        href: `/worlds/${worldId}/profile/${character.id}`,
+      });
     }
   }
 
@@ -1322,6 +1434,14 @@ export class WorldsService {
       .where(eq(schema.relationshipMilestones.worldId, worldId))
       .orderBy(desc(schema.relationshipMilestones.id))
       .limit(30);
+  }
+
+  private async countUnreadNotifications(worldId: number) {
+    const rows = await this.db
+      .select({ id: schema.notifications.id })
+      .from(schema.notifications)
+      .where(and(eq(schema.notifications.worldId, worldId), eq(schema.notifications.read, false)));
+    return rows.length;
   }
 
   private async relationshipContext(
