@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import ThemeToggle from "@/components/ThemeToggle";
 import LoadingState from "@/components/LoadingState";
-import type { Conversation, DirectMessage, World } from "@/lib/types";
+import type { Conversation, DirectMessage, Relationship, World } from "@/lib/types";
 
 function initials(name: string) {
   return name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
@@ -24,6 +24,8 @@ export default function MessagesClient() {
   const [typingChar, setTypingChar] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [relationshipDelta, setRelationshipDelta] = useState<number | null>(null);
+  const [activeRelationship, setActiveRelationship] = useState<Relationship | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   const loadMessages = useCallback(async (characterId: number) => {
@@ -56,6 +58,8 @@ export default function MessagesClient() {
   useEffect(() => {
     if (!activeChar) return;
     window.localStorage.setItem(`offscript:last-dm:${id}`, String(activeChar));
+    setRelationshipDelta(null);
+    setActiveRelationship(null);
     loadMessages(activeChar);
   }, [activeChar, id, loadMessages]);
 
@@ -76,7 +80,9 @@ export default function MessagesClient() {
     setBusy(true);
     setError("");
     try {
-      await api.sendDm(id, activeChar, content);
+      const result = await api.sendDm(id, activeChar, content);
+      setRelationshipDelta(result.relationshipDelta);
+      setActiveRelationship(result.relationship);
       await loadMessages(activeChar);
       await loadConversations();
     } catch (reason) {
@@ -91,6 +97,7 @@ export default function MessagesClient() {
   if (!world) return <LoadingState label="Loading messages…" />;
   const conversation = conversations.find((item) => item.character.id === activeChar);
   const character = conversation?.character;
+  const relationship = activeRelationship ?? conversation?.relationship ?? null;
 
   return (
     <main className="min-h-screen bg-[#0f1419] text-[#e7e9ea]">
@@ -117,6 +124,34 @@ export default function MessagesClient() {
             <div className="flex min-h-0 flex-col">
               {character ? <>
                 <header className="flex items-center gap-3 border-b border-[#2f3336] p-4"><div className="grid h-11 w-11 place-items-center rounded-full bg-gradient-to-br from-[#1d9bf0] to-[#7856ff] font-bold">{initials(character.name)}</div><div><div className="font-bold">{character.name}</div><div className="text-sm text-[#71767b]">{character.handle}</div></div><Link className="ml-auto rounded-full border border-[#536471] px-4 py-1.5 text-sm font-bold" href={`/worlds/${id}/profile/${character.id}`}>Profile</Link></header>
+                <div className="border-b border-[#2f3336] px-4 py-3">
+                  <div className="flex items-center justify-between gap-3 text-xs">
+                    <span className="text-[#71767b]">Relationship</span>
+                    {relationship && (
+                      <span className="capitalize text-[#b8c0c7]">
+                        {relationship.status} · {relationship.level}/100
+                      </span>
+                    )}
+                  </div>
+                  {relationshipDelta !== null && relationshipDelta !== 0 && (
+                    <div
+                      className={`mt-2 rounded-xl border px-3 py-2 text-sm font-medium ${
+                        relationshipDelta > 0
+                          ? "border-[#00ba7c]/40 bg-[#00ba7c]/10 text-[#00ba7c]"
+                          : "border-[#f91880]/40 bg-[#f91880]/10 text-[#f91880]"
+                      }`}
+                      role="status"
+                      aria-live="polite"
+                    >
+                      {relationshipDelta > 0 ? "Relationship increased" : "Relationship decreased"}{" "}
+                      <strong>
+                        {relationshipDelta > 0
+                          ? `▲ +${relationshipDelta}`
+                          : `▼ ${relationshipDelta}`}
+                      </strong>
+                    </div>
+                  )}
+                </div>
                 <div className="min-h-0 flex-1 overflow-y-auto p-4">
                   {messages.map((message) => <div className={`mb-3 max-w-[78%] rounded-2xl px-4 py-2.5 text-sm ${message.sender === "player" ? "ml-auto bg-[#1d9bf0] text-white" : "bg-[#202327]"}`} key={message.id}>{message.content}</div>)}
                   {typingChar === activeChar && <div className="mb-3 w-fit rounded-2xl bg-[#202327] px-4 py-2 text-sm text-[#71767b]" aria-live="polite">{character.name} is typing <span className="animate-pulse">•••</span></div>}

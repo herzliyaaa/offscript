@@ -6,6 +6,7 @@ export const envValidationSchema = Joi.object({
     .default('development'),
 
   PORT: Joi.number().port().default(3001),
+  MODERATION_ADMIN_KEY: Joi.string().allow('').default(''),
 
   AI_PROVIDER: Joi.string().valid('ollama', 'deepseek').default('ollama'),
 
@@ -30,6 +31,8 @@ export const envValidationSchema = Joi.object({
   OLLAMA_THINK: Joi.boolean().default(false),
 
   OLLAMA_KEEP_ALIVE: Joi.string().default('10m'),
+
+  AI_MAX_TOKENS: Joi.number().integer().min(128).max(2000).default(800),
 
   DEEPSEEK_API_KEY: Joi.string().allow('').default(''),
   DEEPSEEK_BASE_URL: Joi.string()

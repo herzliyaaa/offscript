@@ -194,6 +194,9 @@ importers:
       '@nestjs/swagger':
         specifier: ^12.0.5
         version: 12.0.5(@nestjs/common@12.2.0(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@nestjs/core@12.2.0)(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(typescript@6.0.3)
+      '@offscript/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       class-transformer:
         specifier: ^0.5.1
         version: 0.5.1
@@ -282,6 +285,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@offscript/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       next:
         specifier: 16.4.3
         version: 16.4.3(@babel/core@7.29.7(supports-color@7.2.0))(@types/node@20.19.43)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -316,6 +322,12 @@ importers:
       typescript:
         specifier: ^5
         version: 5.9.3
+
+  packages/types:
+    devDependencies:
+      typescript:
+        specifier: ^6.0.2
+        version: 6.0.3
 
 packages:
 

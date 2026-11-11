@@ -12,9 +12,11 @@ import {
 import type {
   CharacterKind,
   CharacterPersona,
+  CharacterMemory,
   DmSender,
   PostKind,
   RelationshipStatus,
+  RelationshipCategory,
   WorldState,
 } from '../worlds/world.types.js';
 
@@ -68,6 +70,9 @@ export const characters = pgTable(
     bio: text().notNull(),
     additionalDescription: text('additional_description'),
     followerCount: integer('follower_count').notNull().default(0),
+    memory: jsonb().$type<CharacterMemory[]>().notNull().default([]),
+    goals: jsonb().$type<string[]>().notNull().default([]),
+    mood: varchar({ length: 64 }).notNull().default('curious'),
     persona: jsonb().$type<CharacterPersona>().notNull(),
     stats: jsonb().$type<Record<string, number>>().notNull(),
     isPlayer: boolean('is_player').notNull().default(false),
@@ -147,6 +152,10 @@ export const relationships = pgTable(
       .$type<RelationshipStatus>()
       .notNull()
       .default('neutral'),
+    category: varchar('category', { length: 32 })
+      .$type<RelationshipCategory>()
+      .notNull()
+      .default('neutral'),
     note: text().notNull().default(''),
     updatedAt: timestamp('updated_at', {
       withTimezone: true,
@@ -203,6 +212,33 @@ export const directMessages = pgTable('direct_messages', {
     .defaultNow()
     .notNull(),
 });
+
+export const moderationReports = pgTable('moderation_reports', {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  worldId: integer('world_id').notNull().references(() => worlds.id, { onDelete: 'cascade' }),
+  reporterCharacterId: integer('reporter_character_id').references(() => characters.id, { onDelete: 'set null' }),
+  postId: integer('post_id').references(() => posts.id, { onDelete: 'cascade' }),
+  characterId: integer('character_id').references(() => characters.id, { onDelete: 'cascade' }),
+  reason: varchar({ length: 64 }).notNull(),
+  details: text().notNull().default(''),
+  status: varchar({ length: 32 }).notNull().default('open'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const moderationBlocks = pgTable(
+  'moderation_blocks',
+  {
+    id: integer().primaryKey().generatedAlwaysAsIdentity(),
+    worldId: integer('world_id').notNull().references(() => worlds.id, { onDelete: 'cascade' }),
+    characterId: integer('character_id').notNull().references(() => characters.id, { onDelete: 'cascade' }),
+    blockedCharacterId: integer('blocked_character_id').notNull().references(() => characters.id, { onDelete: 'cascade' }),
+    kind: varchar({ length: 16 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('moderation_blocks_unique').on(table.worldId, table.characterId, table.blockedCharacterId, table.kind),
+  ],
+);
 
 export const worldEvents = pgTable('world_events', {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),

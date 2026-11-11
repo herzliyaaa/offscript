@@ -27,6 +27,9 @@ import {
   SendDmDto,
   UpdateCharacterDto,
   WorldActionDto,
+  ReportContentDto,
+  BlockCharacterDto,
+  ResolveReportDto,
 } from './dto/world.dto.js';
 import { WorldsService } from './worlds.service.js';
 import type { AvatarUpload } from './world.types.js';
@@ -62,6 +65,16 @@ export class WorldsController {
   @ApiOperation({ summary: 'List recognizable celebrity identity presets' })
   celebrityPresets() {
     return this.worlds.listCelebrityPresets();
+  }
+
+  @Get('admin/moderation/reports')
+  moderationReports(@Req() request: Request) {
+    return this.worlds.listModerationReports(request.header('x-moderation-admin-key'));
+  }
+
+  @Patch('admin/moderation/reports/:reportId')
+  resolveModerationReport(@Param('reportId', ParseIntPipe) reportId: number, @Body() dto: ResolveReportDto, @Req() request: Request) {
+    return this.worlds.resolveModerationReport(reportId, dto.status, request.header('x-moderation-admin-key'));
   }
 
   @Get(':id')
@@ -126,6 +139,21 @@ export class WorldsController {
     @Body() dto: PostInteractionDto,
   ) {
     return this.worlds.interactWithPost(id, postId, dto.type);
+  }
+
+  @Post(':id/posts/:postId/report')
+  reportPost(@Param('id', ParseIntPipe) id: number, @Param('postId', ParseIntPipe) postId: number, @Body() dto: ReportContentDto) {
+    return this.worlds.reportPost(id, postId, dto);
+  }
+
+  @Post(':id/characters/:characterId/report')
+  reportCharacter(@Param('id', ParseIntPipe) id: number, @Param('characterId', ParseIntPipe) characterId: number, @Body() dto: ReportContentDto) {
+    return this.worlds.reportCharacter(id, characterId, dto);
+  }
+
+  @Post(':id/characters/:characterId/block')
+  blockCharacter(@Param('id', ParseIntPipe) id: number, @Param('characterId', ParseIntPipe) characterId: number, @Body() dto: BlockCharacterDto) {
+    return this.worlds.setCharacterBlock(id, characterId, dto);
   }
 
   @Get(':id/events')
@@ -193,6 +221,11 @@ export class WorldsController {
   @Post(':id/actions')
   @ApiOperation({ summary: 'Take an action and advance the simulation' })
   act(@Param('id', ParseIntPipe) id: number, @Body() dto: WorldActionDto) {
-    return this.worlds.act(id, dto.action);
+    return this.worlds.act(id, dto.action, {
+      title: dto.eventTitle,
+      description: dto.eventDescription,
+      sourceName: dto.eventSourceName,
+      sourceHandle: dto.eventSourceHandle,
+    });
   }
 }

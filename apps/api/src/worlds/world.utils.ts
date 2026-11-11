@@ -1,4 +1,4 @@
-import type { PostKind, RelationshipStatus } from './world.types.js';
+import type { PostKind, RelationshipCategory, RelationshipStatus } from './world.types.js';
 
 export const POST_KINDS: PostKind[] = [
   'post',
@@ -17,6 +17,18 @@ export const RELATIONSHIP_STATUSES: RelationshipStatus[] = [
   'enemy',
   'mentor',
 ];
+export const RELATIONSHIP_CATEGORIES: RelationshipCategory[] = [
+  'friendship', 'romance', 'rivalry', 'family', 'professional', 'neutral',
+];
+
+export function normalizeRelationshipCategory(
+  category: string | undefined,
+  fallback: RelationshipCategory = 'neutral',
+): RelationshipCategory {
+  return RELATIONSHIP_CATEGORIES.includes(category as RelationshipCategory)
+    ? (category as RelationshipCategory)
+    : fallback;
+}
 
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));

@@ -14,6 +14,7 @@ import type {
   World,
   WorldEvent,
 } from './types';
+import type { ApiError } from '@offscript/types';
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
@@ -29,7 +30,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || `Request failed: ${res.status}`);
+    let message = text || `Request failed: ${res.status}`;
+    try {
+      const error = JSON.parse(text) as ApiError;
+      message = Array.isArray(error.message) ? error.message.join(', ') : error.message;
+    } catch {
+      // Preserve the server's plain-text error response.
+    }
+    throw new Error(message);
   }
 
   return res.json() as Promise<T>;
@@ -89,6 +97,21 @@ export const api = {
       `/worlds/${id}/posts/${postId}/interactions`,
       { method: 'POST', body: JSON.stringify({ type }) },
     ),
+  reportPost: (id: number, postId: number, reason: string, details?: string) =>
+    request(`/worlds/${id}/posts/${postId}/report`, {
+      method: 'POST',
+      body: JSON.stringify({ reason, details }),
+    }),
+  reportCharacter: (id: number, characterId: number, reason: string, details?: string) =>
+    request(`/worlds/${id}/characters/${characterId}/report`, {
+      method: 'POST',
+      body: JSON.stringify({ reason, details }),
+    }),
+  blockCharacter: (id: number, characterId: number, kind: 'block' | 'mute') =>
+    request<{ active: boolean; kind: string }>(`/worlds/${id}/characters/${characterId}/block`, {
+      method: 'POST',
+      body: JSON.stringify({ kind }),
+    }),
   notifications: (id: number) =>
     request<{ notifications: import('./types').Notification[]; unreadCount: number }>(
       `/worlds/${id}/notifications`,
@@ -123,14 +146,21 @@ export const api = {
       character: Character;
       events: unknown[];
       relationship: Relationship | null;
+      relationshipDelta: number;
       durationMs?: number;
     }>(`/worlds/${id}/conversations/${characterId}`, {
       method: 'POST',
       body: JSON.stringify({ content }),
     }),
-  act: (id: number, action: string) =>
+  act: (id: number, action: string, event?: Partial<EventScenario>) =>
     request<ActionOutcome>(`/worlds/${id}/actions`, {
       method: 'POST',
-      body: JSON.stringify({ action }),
+      body: JSON.stringify({
+        action,
+        eventTitle: event?.title,
+        eventDescription: event?.description,
+        eventSourceName: event?.sourceName,
+        eventSourceHandle: event?.sourceHandle,
+      }),
     }),
 };

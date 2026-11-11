@@ -1,5 +1,5 @@
 import type { ScenarioTemplate } from '../scenarios/scenario.types.js';
-import { RELATIONSHIP_STATUSES } from './world.utils.js';
+import { RELATIONSHIP_CATEGORIES, RELATIONSHIP_STATUSES } from './world.utils.js';
 
 export function statProperties(
   labels: string[],
@@ -19,7 +19,7 @@ const postSchema = {
   type: 'object',
   properties: {
     author: { type: 'string' },
-    content: { type: 'string' },
+    content: { type: 'string', maxLength: 180 },
     kind: { type: 'string', enum: ['post', 'reply', 'headline', 'dm'] },
     likes: { type: 'integer', minimum: 0, maximum: 1000000 },
   },
@@ -32,8 +32,8 @@ export function buildWorldSchema(template: ScenarioTemplate) {
     type: 'object',
     properties: {
       worldName: { type: 'string' },
-      summary: { type: 'string' },
-      openingScene: { type: 'string' },
+      summary: { type: 'string', maxLength: 300 },
+      openingScene: { type: 'string', maxLength: 900 },
       playerStats: {
         type: 'object',
         properties: statProperties(template.statLabels, false),
@@ -94,8 +94,8 @@ export function buildTurnSchema(template: ScenarioTemplate) {
   return {
     type: 'object',
     properties: {
-      narration: { type: 'string' },
-      summary: { type: 'string' },
+      narration: { type: 'string', maxLength: 500 },
+      summary: { type: 'string', maxLength: 180 },
       statChanges: {
         type: 'object',
         properties: statProperties(template.statLabels, true),
@@ -110,9 +110,10 @@ export function buildTurnSchema(template: ScenarioTemplate) {
             character: { type: 'string' },
             delta: { type: 'integer', minimum: -20, maximum: 20 },
             status: { type: 'string', enum: RELATIONSHIP_STATUSES },
+            category: { type: 'string', enum: RELATIONSHIP_CATEGORIES },
             note: { type: 'string' },
           },
-          required: ['character', 'delta', 'status', 'note'],
+          required: ['character', 'delta', 'status', 'category', 'note'],
           additionalProperties: false,
         },
       },
@@ -120,13 +121,14 @@ export function buildTurnSchema(template: ScenarioTemplate) {
       newGoals: { type: 'array', items: { type: 'string' } },
       events: {
         type: 'array',
-        maxItems: 2,
+        maxItems: 1,
         items: {
           type: 'object',
           properties: {
-            title: { type: 'string' },
-            description: { type: 'string' },
+            title: { type: 'string', maxLength: 80 },
+            description: { type: 'string', maxLength: 240 },
             type: { type: 'string' },
+            followerChange: { type: 'integer', minimum: -50000, maximum: 100000 },
             sourceName: { type: 'string' },
             sourceHandle: { type: 'string' },
             context: { type: 'string' },
@@ -152,8 +154,8 @@ export function buildTurnSchema(template: ScenarioTemplate) {
 const eventChoiceSchema = {
   type: 'object',
   properties: {
-    label: { type: 'string' },
-    action: { type: 'string' },
+    label: { type: 'string', maxLength: 40 },
+    action: { type: 'string', maxLength: 120 },
   },
   required: ['label', 'action'],
   additionalProperties: false,
@@ -166,9 +168,12 @@ export function buildEventScenariosSchema() {
       scenario: {
         type: 'object',
         properties: {
-          title: { type: 'string' },
-          description: { type: 'string' },
+          title: { type: 'string', maxLength: 80 },
+          description: { type: 'string', maxLength: 450 },
           type: { type: 'string' },
+          sourceName: { type: 'string' },
+          sourceHandle: { type: 'string' },
+          context: { type: 'string', maxLength: 120 },
           choices: {
             type: 'array',
             minItems: 3,

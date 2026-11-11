@@ -13,7 +13,7 @@ const templates: ScenarioTemplate[] = [
     goal: 'Produce a #1 album for another artist without losing your own career.',
     tone: 'Dramatic, witty, emotionally charged, with sharp industry satire.',
     themes: ['fame', 'reinvention', 'rivalry', 'creative control'],
-    statLabels: ['Fame', 'Talent', 'Reputation', 'Money', 'Wellbeing'],
+    statLabels: ['Fame', 'Talent', 'Reputation', 'Money', 'Aura', 'Humor'],
     castGuidance:
       'Include 4-5 celebrities: a rival idol, a legendary reclusive producer, a calculating label executive, a breakout rookie, and a gossip journalist or influencer. Give each one a public persona and a private secret.',
     openingHook:
@@ -31,7 +31,7 @@ const templates: ScenarioTemplate[] = [
     goal: 'Win your first major award without losing yourself in the process.',
     tone: 'Glossy, tense, intimate, with dark Hollywood humor.',
     themes: ['ambition', 'identity', 'public image', 'loyalty'],
-    statLabels: ['Fame', 'Talent', 'Reputation', 'Money', 'Wellbeing'],
+    statLabels: ['Fame', 'Talent', 'Reputation', 'Money', 'Aura', 'Humor'],
     castGuidance:
       'Include 4-5 celebrities: an acclaimed director, a charismatic co-star, a ruthless agent, a rival actress, and a tabloid journalist. Give each one a public persona and a private secret.',
     openingHook:
@@ -49,7 +49,7 @@ const templates: ScenarioTemplate[] = [
     goal: 'Turn reality-TV fame into a lasting career.',
     tone: 'Campy, fast-paced, funny, with moments of genuine vulnerability.',
     themes: ['fame', 'authenticity', 'manipulation', 'belonging'],
-    statLabels: ['Fame', 'Influence', 'Reputation', 'Money', 'Wellbeing'],
+    statLabels: ['Fame', 'Influence', 'Reputation', 'Money', 'Aura', 'Humor'],
     castGuidance:
       'Include 4-5 celebrities: a scheming co-star, a producer who controls the edit, a popular influencer, a former winner, and a brand executive. Give each one a public persona and a private secret.',
     openingHook:
@@ -67,7 +67,7 @@ const templates: ScenarioTemplate[] = [
     goal: 'Get signed without selling out your sound or your people.',
     tone: 'Raw, warm, bittersweet, with dry humor.',
     themes: ['art vs commerce', 'friendship', 'integrity', 'luck'],
-    statLabels: ['Fame', 'Craft', 'Reputation', 'Money', 'Wellbeing'],
+    statLabels: ['Fame', 'Craft', 'Reputation', 'Money', 'Aura', 'Humor'],
     castGuidance:
       'Include 4-5 celebrities: a jaded A&R scout, a rival indie artist, a loyal bandmate, a popular producer, and a music critic. Give each one a public persona and a private secret.',
     openingHook:

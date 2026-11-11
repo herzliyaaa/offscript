@@ -22,7 +22,8 @@ export interface ParentPostContext {
 }
 
 function actorLine(actor: ActorContext): string {
-  return `- ${actor.handle} (${actor.name}, ${actor.kind}, ${actor.role}): ${actor.persona.voice} ${actor.persona.personality}`;
+  const memories = actor.memory.slice(-3).map((item) => item.text).join(' | ');
+  return `- ${actor.handle} (${actor.name}, ${actor.kind}, ${actor.role}, ${actor.followerCount} followers, mood: ${actor.mood}): ${actor.persona.voice} ${actor.persona.personality}. Goals: ${actor.goals.join(', ') || 'none'}. Memory: ${memories || 'none'}`;
 }
 
 function relationshipLines(relationships: RelationshipContext[]): string {
@@ -33,7 +34,7 @@ function relationshipLines(relationships: RelationshipContext[]): string {
   return relationships
     .map(
       (relationship) =>
-        `- ${relationship.character} (${relationship.handle}): level ${relationship.level}, ${relationship.status}. ${relationship.note}`,
+        `- ${relationship.character} (${relationship.handle}): ${relationship.category}, level ${relationship.level}, ${relationship.status}. ${relationship.note}`,
     )
     .join('\n');
 }
@@ -68,6 +69,7 @@ export function buildPostReactionPrompt(
     `SCENARIO: ${template.title} — ${template.setting}`,
     `PLAYER: ${player.name} (${player.handle})`,
     `CURRENT TURN: ${world.turn}`,
+    `WORLD DESCRIPTION: ${world.state.worldDescription ?? world.state.summary}`,
     `WORLD SUMMARY: ${world.state.summary}`,
     `PLAYER STATS: ${JSON.stringify(world.state.playerStats)}`,
     `GOALS: ${world.state.goals.join('; ') || 'None yet'}`,
@@ -88,13 +90,13 @@ export function buildPostReactionPrompt(
     '',
     'Rules:',
     "- postLikes: integer from 0 to 1000000. Scale it to the player's Fame and Reputation.",
-    '- replies: 3-6 casual social media reactions. At least 2 MUST be from characters listed in RELATIONSHIPS, prioritizing the characters with the strongest relationship levels. Use their exact @handles from the accounts above. Mix short celebrity replies, stan reactions, gossip, hate, support, jokes, and awkward comments. Each should usually be 1-2 short sentences and under 280 characters.',
-    '- Write like real people online: contractions, lowercase, slang, emojis, "wait", "lol", "okay but", "no way", and unfinished thoughts are welcome. Avoid poetic monologues, dramatic narration, corporate language, and generic inspirational quotes.',
+    `- replies: exactly one casual reply from EVERY account listed above (${actors.length} replies total). Use each exact @handle once. Every reply must directly react to THE PLAYER'S POST; do not make generic replies or add accounts that are not listed.`,
+    '- Write like real people online: plain words, contractions, lowercase, slang, emojis, "wait", "lol", "okay but", and "no way". Keep each reply under 180 characters. Avoid deep words, poetic monologues, dramatic narration, corporate language, and generic inspirational quotes.',
     '- Each reply has author (exact @handle), content, kind (post, reply, quote, or headline), and likes (0-1000000). Content must be the actual post text only, not a description of what the character thinks.',
-    '- relationshipChanges: only for listed characters. delta is -20 to 20. status is neutral, friendly, close, romantic, rival, enemy, or mentor. note is a short reason.',
-    '- events: 0-2 optional events triggered by the post. Each has title, description, and type.',
+    '- relationshipChanges: only for listed characters in this world. delta is -20 to 20. status is neutral, friendly, close, romantic, rival, enemy, or mentor. note is a short reason.',
+    '- events: 0-1 optional event triggered by the post. Each has title, description, type, and followerChange from -50000 to 100000 (use 0 if unchanged).',
     '- statChanges: integer deltas from -20 to 20 for every stat. Use 0 when unchanged.',
-    '- summary: updated 2-3 sentence running summary of the world.',
+    '- summary: one simple sentence under 180 characters describing what matters now.',
     "- Stay in each account's voice. Do not use real people.",
     '- Return ONLY JSON. No markdown, no commentary.',
   ].join('\n');
@@ -133,6 +135,7 @@ export function buildDmPrompt(
     `CHARACTER SECRET (never reveal directly): ${character.persona.secret}`,
     `CHARACTER VOICE: ${character.persona.voice}`,
     `RELATIONSHIP: level ${relationship.level}, ${relationship.status}. ${relationship.note}`,
+    `WORLD DESCRIPTION: ${world.state.worldDescription ?? world.state.summary}`,
     `WORLD SUMMARY: ${world.state.summary}`,
     '',
     'CONVERSATION SO FAR:',
@@ -141,12 +144,14 @@ export function buildDmPrompt(
     `PLAYER'S NEW DM: ${content}`,
     '',
     'Rules:',
-    "- reply: the character's casual in-character response, like a real DM. Use 1-3 short messages combined, contractions and slang when natural, and stay under 400 characters. Do not write a speech or poetic monologue.",
-    '- relationshipDelta: integer from -20 to 20 based on how the message lands.',
+    "- reply: the character's casual in-character response, like a real DM. Use 1-2 short messages combined and stay under 240 characters. Do not write a speech or poetic monologue.",
+    '- playerMessageRelationshipDelta: integer from -20 to 20 for the immediate effect of the player message itself. Positive means it builds trust or closeness; negative means it causes hurt, tension, or distance. Judge the exact wording, not just the topic.',
+    '- relationshipDelta: integer from -20 to 20 for the character reply effect after reading the player message.',
+    '- Keep each delta small for normal messages. Use values near 0 when the message is ordinary. Do not make the relationship jump unless the message or reply is clearly meaningful.',
     '- relationshipStatus: neutral, friendly, close, romantic, rival, enemy, or mentor.',
     '- note: a short updated note about the relationship.',
-    '- events: 0-1 optional events triggered by this conversation. Each has title, description, and type.',
-    '- summary: updated 2-3 sentence running summary of the world.',
+    '- events: 0-1 optional event triggered by this conversation. Its title is under 60 characters and its description is one short sentence under 240 characters.',
+    '- summary: one simple sentence under 180 characters describing what matters now.',
     '- The character may lie, deflect, flirt, threaten, or test the player. Secrets should only surface when earned.',
     '- Return ONLY JSON. No markdown, no commentary.',
   ].join('\n');
@@ -177,6 +182,7 @@ export function buildEventPrompt(
     `SCENARIO: ${template.title} — ${template.setting}`,
     `PLAYER: ${player.name} (${player.handle})`,
     `CURRENT TURN: ${world.turn}`,
+    `WORLD DESCRIPTION: ${world.state.worldDescription ?? world.state.summary}`,
     `WORLD SUMMARY: ${world.state.summary}`,
     `PLAYER STATS: ${JSON.stringify(world.state.playerStats)}`,
     `GOALS: ${world.state.goals.join('; ') || 'None yet'}`,
@@ -195,12 +201,13 @@ export function buildEventPrompt(
     '',
     'Rules:',
     '- title: a short, punchy headline.',
-    '- description: 2-4 paragraphs in second person ("You..."), showing how the event hits the player and the cast. End on a decision point.',
+    '- description: 1-2 short paragraphs in second person ("You..."), under 450 characters, showing how the event hits the player. End on a decision point.',
     '- type: scandal, opportunity, rivalry, romance, career, public, or wildcard.',
-    '- posts: 2-5 casual social media reactions or headlines from the accounts above. Use exact @handles. Each under 280 characters with likes from 0 to 1000000. Make them sound like actual posts, not polished narration.',
-    '- relationshipChanges: only for listed characters. delta -20 to 20. status is neutral, friendly, close, romantic, rival, enemy, or mentor.',
+    '- posts: 2-3 casual social media reactions or headlines from the accounts above. Use exact @handles. Each under 180 characters with likes from 0 to 1000000.',
+    '- relationshipChanges: only for listed characters in this world. delta -20 to 20. status is neutral, friendly, close, romantic, rival, enemy, or mentor.',
+    '- followerChange: player follower delta from -50000 to 100000 if this event changes public reach; otherwise 0.',
     '- statChanges: integer deltas from -20 to 20 for every stat. Use 0 when unchanged.',
-    '- summary: updated 2-3 sentence running summary of the world.',
+    '- summary: one simple sentence under 180 characters describing what matters now.',
     '- Events should create story momentum, not resolve everything.',
     '- Return ONLY JSON. No markdown, no commentary.',
   ]

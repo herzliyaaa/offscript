@@ -87,6 +87,30 @@ export class WorldActionDto {
   @IsNotEmpty()
   @MaxLength(1000)
   action!: string;
+
+  @ApiPropertyOptional({ description: 'The generated event being answered, if applicable.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  eventTitle?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  eventDescription?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  eventSourceName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  eventSourceHandle?: string;
 }
 
 export class ListWorldsQueryDto {
@@ -135,6 +159,29 @@ export class SendDmDto {
   @IsNotEmpty()
   @MaxLength(1000)
   content!: string;
+}
+
+export class ReportContentDto {
+  @IsString()
+  @IsIn(['harassment', 'sexual', 'spam', 'self_harm', 'impersonation', 'other'])
+  reason!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  details?: string;
+}
+
+export class BlockCharacterDto {
+  @IsString()
+  @IsIn(['block', 'mute'])
+  kind!: 'block' | 'mute';
+}
+
+export class ResolveReportDto {
+  @IsString()
+  @IsIn(['resolved', 'dismissed'])
+  status!: 'resolved' | 'dismissed';
 }
 
 export class GenerateEventDto {

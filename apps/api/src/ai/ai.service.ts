@@ -37,6 +37,7 @@ export class AiService {
   private readonly embedModel: string;
   private readonly temperature: number;
   private readonly numCtx: number;
+  private readonly maxTokens: number;
   private readonly think: AiThinking;
   private readonly keepAlive: string | number;
   private readonly provider: AiProvider;
@@ -54,6 +55,7 @@ export class AiService {
     this.embedModel = config.get<string>('ai.embedModel', 'nomic-embed-text');
     this.temperature = config.get<number>('ai.temperature', 0.7);
     this.numCtx = config.get<number>('ai.numCtx', 8192);
+    this.maxTokens = config.get<number>('ai.maxTokens', 800);
     this.think = config.get<AiThinking>('ai.think', false);
     this.keepAlive = config.get<string>('ai.keepAlive', '10m');
     this.deepseekApiKey = config.get<string>('ai.deepseekApiKey', '');
@@ -147,6 +149,10 @@ export class AiService {
       `Model "${this.model}" returned invalid JSON; retrying once`,
     );
 
+    const retryMaxTokens = Math.min(
+      2000,
+      Math.max(options.maxTokens ?? this.maxTokens, 900),
+    );
     const repaired = await this.chat(
       [
         ...messages,
@@ -154,10 +160,10 @@ export class AiService {
         {
           role: 'user',
           content:
-            'Your previous response was not valid JSON. Return ONLY a valid JSON object that matches the schema. No markdown, no commentary.',
+            'Return ONLY one complete valid JSON object matching the schema. Do not explain anything, do not use markdown, and keep every string short.',
         },
       ],
-      chatOptions,
+      { ...chatOptions, maxTokens: retryMaxTokens },
     );
     const retryParsed = this.tryParseJson<T>(repaired);
 
@@ -291,6 +297,8 @@ export class AiService {
 
     if (options.maxTokens !== undefined) {
       body.max_tokens = options.maxTokens;
+    } else {
+      body.max_tokens = this.maxTokens;
     }
     if (options.format) {
       body.response_format = { type: 'json_object' };
@@ -355,9 +363,7 @@ export class AiService {
       num_ctx: options.numCtx ?? this.numCtx,
     };
 
-    if (options.maxTokens !== undefined) {
-      result.num_predict = options.maxTokens;
-    }
+    result.num_predict = options.maxTokens ?? this.maxTokens;
 
     return result;
   }

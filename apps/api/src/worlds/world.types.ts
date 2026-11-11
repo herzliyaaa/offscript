@@ -1,9 +1,18 @@
-export type CharacterKind = 'player' | 'celebrity' | 'custom' | 'stan';
+import type {
+  CharacterKind,
+  CharacterMemory,
+  RelationshipCategory,
+  RelationshipStatus,
+} from '@offscript/types';
+
+export type {
+  CharacterKind,
+  CharacterMemory,
+  RelationshipCategory,
+  RelationshipStatus,
+} from '@offscript/types';
 
 export type PostKind = 'post' | 'reply' | 'quote' | 'headline' | 'dm';
-
-export type RelationshipStatus =
-  'neutral' | 'friendly' | 'close' | 'romantic' | 'rival' | 'enemy' | 'mentor';
 
 export type DmSender = 'player' | 'character';
 
@@ -21,6 +30,7 @@ export interface CharacterPersona {
 }
 
 export interface WorldState {
+  worldDescription?: string;
   summary: string;
   currentScene: string;
   playerStats: Record<string, number>;
@@ -34,6 +44,10 @@ export interface ActorContext {
   handle: string;
   kind: CharacterKind;
   role: string;
+  followerCount: number;
+  memory: CharacterMemory[];
+  goals: string[];
+  mood: string;
   persona: CharacterPersona;
 }
 
@@ -42,6 +56,7 @@ export interface RelationshipContext {
   handle: string;
   level: number;
   status: RelationshipStatus;
+  category: RelationshipCategory;
   note: string;
 }
 
@@ -77,6 +92,7 @@ export interface RelationshipChange {
   character: string;
   delta: number;
   status?: RelationshipStatus;
+  category?: RelationshipCategory;
   note: string;
 }
 
@@ -84,6 +100,7 @@ export interface GeneratedEvent {
   title: string;
   description: string;
   type: string;
+  followerChange?: number;
   choices?: GeneratedEventChoice[];
 }
 
@@ -120,6 +137,7 @@ export interface GeneratedTurn {
 
 export interface GeneratedDmReply {
   reply: string;
+  playerMessageRelationshipDelta: number;
   relationshipDelta: number;
   relationshipStatus: RelationshipStatus;
   note: string;

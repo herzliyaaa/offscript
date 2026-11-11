@@ -57,6 +57,35 @@ $ pnpm run test:e2e
 $ pnpm run test:cov
 ```
 
+## AI provider
+
+The local API is configured to use DeepSeek by default through `apps/api/.env`:
+
+```env
+AI_PROVIDER=deepseek
+DEEPSEEK_API_KEY=your-api-key
+DEEPSEEK_MODEL=deepseek-chat
+```
+
+Keep the API key local and do not commit it. Set `DEEPSEEK_API_KEY` before starting
+the API. Ollama remains supported by setting `AI_PROVIDER=ollama`.
+
+## Moderation
+
+Posts, DMs, character profiles, and player prompts pass through local safety checks
+for blocked terms, explicit sexual content, threats, harassment, and prompt injection.
+Set `MODERATION_ADMIN_KEY` to protect the moderation report review endpoints:
+
+```env
+MODERATION_ADMIN_KEY=use-a-long-random-secret
+```
+
+Reports are submitted under a world at `POST /api/worlds/:id/posts/:postId/report`
+or `POST /api/worlds/:id/characters/:characterId/report`. Admins review open reports
+with `GET /api/worlds/admin/moderation/reports` and resolve them with
+`PATCH /api/worlds/admin/moderation/reports/:reportId`, sending the key in the
+`x-moderation-admin-key` header.
+
 ## Deployment
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.

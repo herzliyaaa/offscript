@@ -4,6 +4,7 @@ import { AppService } from './app.service.js';
 import { ConfigModule } from '@nestjs/config';
 import { DatabaseModule } from './db/database.module.js';
 import { HealthModule } from './health/health.module.js';
+import { ModerationModule } from './moderation/moderation.module.js';
 import { UsersModule } from './users/users.module.js';
 import { AiModule } from './ai/ai.module.js';
 import { ScenariosModule } from './scenarios/scenarios.module.js';
@@ -26,6 +27,7 @@ import { envValidationSchema } from './config/env.validation.js';
     ScenariosModule,
     WorldsModule,
     HealthModule,
+    ModerationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

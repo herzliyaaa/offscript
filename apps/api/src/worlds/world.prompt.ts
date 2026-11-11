@@ -8,6 +8,7 @@ import type {
 export interface WorldGenerationInput {
   playerName: string;
   playerPersona?: string;
+  playerAdditionalDescription?: string;
   worldName?: string;
 }
 
@@ -18,11 +19,19 @@ export interface RecentPostContext {
   kind: string;
 }
 
+export interface ActiveEventContext {
+  title?: string;
+  description?: string;
+  sourceName?: string;
+  sourceHandle?: string;
+}
+
 export const WORLD_SYSTEM_PROMPT = [
   'You are the simulation engine for "Offscript", a single-player social-media life sim.',
   'You write vivid, grounded celebrity drama with sharp dialogue and consequences.',
   'Keep social posts, replies, DMs, and captions casual and natural, like real people texting or posting online.',
   'Prefer short sentences, contractions, slang, playful reactions, and specific everyday wording over poetic, formal, or philosophical language.',
+  'Use simple casual words that are easy to understand. Avoid deep, poetic, academic, or overly dramatic language.',
   'Do not make every character sound profound. Social posts should feel spontaneous, messy, funny, blunt, or awkward when appropriate.',
   'You always stay in character and never mention that you are an AI.',
   'You output only valid JSON that matches the requested schema.',
@@ -40,6 +49,7 @@ export function buildWorldGenerationPrompt(
     `PLAYER ROLE: ${template.playerRole}`,
     `PLAYER NAME: ${input.playerName}`,
     `PLAYER PERSONA: ${input.playerPersona ?? 'Invent an interesting public persona.'}`,
+    `PLAYER DETAILS: ${input.playerAdditionalDescription ?? 'No extra details.'}`,
     input.worldName ? `WORLD NAME: ${input.worldName}` : '',
     `CORE GOAL: ${template.goal}`,
     `TONE: ${template.tone}`,
@@ -54,7 +64,7 @@ export function buildWorldGenerationPrompt(
     '- Give every cast member a distinct voice, a conflicting goal, and a secret that can surface later.',
     '- You MUST create at least 4 and at most 5 cast members.',
     '- worldName: a short, evocative name for this world.',
-    '- summary: 2-3 sentences describing the current state of the world.',
+    '- summary: one simple sentence under 180 characters describing the current state.',
     '- openingScene: 2-4 paragraphs in second person ("You..."), ending on a decision point.',
     '- playerStats: one integer from 0 to 100 for every listed stat.',
     '- goals: 2-3 concrete short-term goals.',
@@ -67,7 +77,8 @@ export function buildWorldGenerationPrompt(
 }
 
 function actorLine(actor: ActorContext): string {
-  return `- ${actor.handle} (${actor.name}, ${actor.kind}, ${actor.role}): ${actor.persona.voice} ${actor.persona.personality}`;
+  const memories = actor.memory.slice(-3).map((item) => item.text).join(' | ');
+  return `- ${actor.handle} (${actor.name}, ${actor.kind}, ${actor.role}, ${actor.followerCount} followers, mood: ${actor.mood}): ${actor.persona.voice} ${actor.persona.personality}. Goals: ${actor.goals.join(', ') || 'none'}. Memory: ${memories || 'none'}`;
 }
 
 function relationshipLines(relationships: RelationshipContext[]): string {
@@ -78,7 +89,7 @@ function relationshipLines(relationships: RelationshipContext[]): string {
   return relationships
     .map(
       (relationship) =>
-        `- ${relationship.character} (${relationship.handle}): level ${relationship.level}, ${relationship.status}. ${relationship.note}`,
+        `- ${relationship.character} (${relationship.handle}): ${relationship.category}, level ${relationship.level}, ${relationship.status}. ${relationship.note}`,
     )
     .join('\n');
 }
@@ -94,6 +105,7 @@ export function buildTurnPrompt(
   relationships: RelationshipContext[],
   recentPosts: RecentPostContext[],
   action: string,
+  activeEvent?: ActiveEventContext,
 ): string {
   const feed = recentPosts.length
     ? recentPosts
@@ -107,6 +119,7 @@ export function buildTurnPrompt(
     `SCENARIO: ${template.title} — ${template.setting}`,
     `PLAYER: ${world.playerName} (${template.playerRole})`,
     `CURRENT TURN: ${world.turn}`,
+    `WORLD DESCRIPTION: ${world.state.worldDescription ?? world.state.summary}`,
     `WORLD SUMMARY: ${world.state.summary}`,
     `CURRENT SCENE: ${world.state.currentScene}`,
     `PLAYER STATS: ${JSON.stringify(world.state.playerStats)}`,
@@ -122,14 +135,20 @@ export function buildTurnPrompt(
     feed,
     '',
     `PLAYER ACTION: ${action}`,
+    activeEvent
+      ? `ACTIVE EVENT: ${activeEvent.title} — ${activeEvent.description} (involving ${activeEvent.sourceName} ${activeEvent.sourceHandle})`
+      : '',
     '',
     'Rules:',
-    '- narration: 2-4 paragraphs in second person ("You..."), showing consequences and new complications, ending on a decision point.',
-    '- posts: 2-5 casual in-world reactions from the accounts above, each under 280 characters with likes from 0 to 1000000. Use their exact @handles in author. Make them sound like actual posts, not narration.',
+    activeEvent
+      ? '- Resolve the ACTIVE EVENT exactly. Keep the same people, names, handles, and situation. Do not replace the source character with another character.'
+      : '',
+    '- narration: 2 short paragraphs maximum, in second person ("You..."), showing the consequence and one complication. Keep it under 500 characters and end on a decision point.',
+    '- posts: 2-3 casual in-world reactions from the accounts above, each under 180 characters with likes from 0 to 1000000. Use their exact @handles in author.',
     '- statChanges: integer deltas from -20 to 20 for every stat. Use 0 when unchanged.',
-    '- relationshipChanges: only for listed characters. delta is -20 to 20. status is neutral, friendly, close, romantic, rival, enemy, or mentor.',
-    '- events: 0-2 optional world events triggered by the action. Each has title, description, and type.',
-    '- summary: updated 2-3 sentence running summary of the world.',
+    '- relationshipChanges: only for listed characters in this world. delta is -20 to 20. status is neutral, friendly, close, romantic, rival, enemy, or mentor.',
+    '- events: 0-1 optional world event triggered by the action. Its title is under 60 characters and its description is 1-2 short sentences under 240 characters. followerChange is the player audience delta from -50000 to 100000; use 0 if unchanged.',
+    '- summary: one simple sentence under 180 characters describing what matters now.',
     '- newGoals: 0-2 new goals, only when the story earns them.',
     '- Do not resolve the core goal too quickly. Leave room for the next turn.',
     '- Return ONLY JSON. No markdown, no commentary.',
@@ -153,6 +172,7 @@ export function buildEventScenariosPrompt(
     `SCENARIO: ${template.title} — ${template.setting}`,
     `PLAYER: ${world.playerName} (${player.handle}, ${template.playerRole})`,
     `CURRENT TURN: ${world.turn}`,
+    `WORLD DESCRIPTION: ${world.state.worldDescription ?? world.state.summary}`,
     `WORLD SUMMARY: ${world.state.summary}`,
     `CURRENT SCENE: ${world.state.currentScene}`,
     `PLAYER STATS: ${JSON.stringify(world.state.playerStats)}`,
@@ -164,13 +184,15 @@ export function buildEventScenariosPrompt(
     actors.map(actorLine).join('\n'),
     '',
     'Rules:',
-    '- Create one emotionally specific scenario involving career, relationships, reputation, money, or a personal dilemma.',
+    '- Create one simple, relatable scenario tied to the WORLD DESCRIPTION. It can be about a friend feeling ignored, a partner asking for honesty, family pressure, a missed plan, jealousy, an apology, a boundary, money, work, reputation, or a career chance. Do not make every event about idols, labels, music, or the entertainment industry.',
     '- sourceName and sourceHandle must identify the account most directly involved, using an exact name and @handle from the social accounts above.',
     '- context should be a short social-media-style line such as "sent you a private invitation", "mentioned you in a post", or "called with unexpected news". Do not use category names.',
     '- Use the exact @handles above in the descriptions. Write directly to the player using "you".',
-    '- The description should be 2-4 vivid paragraphs with concrete details, character motivations, tension, and a meaningful decision point.',
-    '- Include exactly 3 detailed choices. Each choice should explain what the player says or does and the emotional or practical risk of that response.',
-    '- label is a concise button heading. action is a complete first-person response that can be sent to the simulation.',
+    '- Use plain, casual words. Do not use deep, poetic, formal, or complicated language.',
+    '- The description should be 2 short paragraphs, under 450 characters, with everyday details and a clear decision point.',
+    '- Include exactly 3 simple choices. Each action is one short first-person response the player can send.',
+    '- label is 2-4 words. action is under 120 characters.',
+    '- followerChange is the player follower delta from -50000 to 100000 based on this event. Use 0 if unchanged.',
     '- Do not resolve the scenario in the description. Never use real celebrities.',
     '- Return ONLY JSON matching the requested schema.',
   ].join('\n');

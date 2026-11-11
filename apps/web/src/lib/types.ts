@@ -1,19 +1,13 @@
-export type Character = {
-  id: number;
-  name: string;
-  handle: string;
-  avatarUrl: string | null;
-  gender: string | null;
-  kind: 'player' | 'celebrity' | 'custom' | 'stan';
-  role: string;
-  bio: string;
-  additionalDescription: string | null;
-  followerCount: number;
-  personality: string;
-  publicPersona: string;
-  voice: string;
-  isPlayer: boolean;
-};
+import type {
+  ActionOutcome as SharedActionOutcome,
+  Character as SharedCharacter,
+  DirectMessage as SharedDirectMessage,
+  EventScenario as SharedEventScenario,
+  Post as SharedPost,
+  World as SharedWorld,
+} from "@offscript/types";
+
+export type Character = SharedCharacter;
 
 export type UpdateCharacterInput = {
   name?: string;
@@ -43,29 +37,12 @@ export type Relationship = {
   role: string;
   level: number;
   status: string;
+  category: 'friendship' | 'romance' | 'rivalry' | 'family' | 'professional' | 'neutral';
   note: string;
   updatedAt: string;
 };
 
-export type Post = {
-  id: number;
-  worldId: number;
-  characterId: number | null;
-  parentId: number | null;
-  authorName: string;
-  authorHandle: string;
-  authorKind: string;
-  content: string;
-  kind: string;
-  likes: number;
-  repostCount: number;
-  quoteCount: number;
-  liked: boolean;
-  reposted: boolean;
-  replyCount: number;
-  turn: number;
-  createdAt: string;
-};
+export type Post = SharedPost;
 
 export type WorldEvent = {
   id: number;
@@ -83,61 +60,11 @@ export type EventChoice = {
   action: string;
 };
 
-export type EventScenario = {
-  id: string;
-  type: string;
-  sourceName: string;
-  sourceHandle: string;
-  context: string;
-  title: string;
-  description: string;
-  choices: EventChoice[];
-};
+export type EventScenario = SharedEventScenario;
 
-export type ActionOutcome = {
-  world: World;
-  turn: number;
-  narration: string;
-  posts: Post[];
-  statChanges: Record<string, number>;
-  relationshipChanges: Array<{
-    character: string;
-    delta: number;
-    status?: string;
-    note: string;
-  }>;
-  newGoals: string[];
-  events: unknown[];
-  relationships: Relationship[];
-  durationMs?: number;
-};
+export type ActionOutcome = SharedActionOutcome;
 
-export type World = {
-  id: number;
-  userId: number | null;
-  name: string;
-  scenarioKey: string;
-  playerName: string;
-  status: string;
-  turn: number;
-  state: {
-    summary: string;
-    currentScene: string;
-    playerStats: Record<string, number>;
-    goals: string[];
-    flags: string[];
-  };
-  createdAt: string;
-  updatedAt: string;
-  player: Character | null;
-  cast: Character[];
-  stanAccounts: Character[];
-  feed: Post[];
-  events: WorldEvent[];
-  relationships: Relationship[];
-  relationshipMilestones: RelationshipMilestone[];
-  unreadNotifications: number;
-};
+export type World = SharedWorld;
 
 export type Notification = {
   id: number;
@@ -174,16 +101,7 @@ export type Scenario = {
   statLabels: string[];
 };
 
-export type DirectMessage = {
-  id: number;
-  worldId: number;
-  characterId: number;
-  sender: 'player' | 'character';
-  content: string;
-  turn: number;
-  read: boolean;
-  createdAt: string;
-};
+export type DirectMessage = SharedDirectMessage;
 
 export type Conversation = {
   character: Character;

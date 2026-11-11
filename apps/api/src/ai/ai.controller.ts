@@ -9,13 +9,13 @@ export class AiController {
   constructor(private readonly ai: AiService) {}
 
   @Get('health')
-  @ApiOperation({ summary: 'Check Ollama and the configured model' })
+  @ApiOperation({ summary: 'Check the configured AI provider and model' })
   health() {
     return this.ai.health();
   }
 
   @Get('models')
-  @ApiOperation({ summary: 'List locally available Ollama models' })
+  @ApiOperation({ summary: 'List models available from the configured AI provider' })
   models() {
     return this.ai.listModels();
   }
