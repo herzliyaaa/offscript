@@ -150,7 +150,7 @@ export class AiService {
     );
 
     const retryMaxTokens = Math.min(
-      2000,
+      3000,
       Math.max(options.maxTokens ?? this.maxTokens, 900),
     );
     const repaired = await this.chat(

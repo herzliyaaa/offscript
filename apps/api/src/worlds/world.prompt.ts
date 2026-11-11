@@ -68,7 +68,7 @@ export function buildWorldGenerationPrompt(
     '- openingScene: 2-4 paragraphs in second person ("You..."), ending on a decision point.',
     '- playerStats: one integer from 0 to 100 for every listed stat.',
     '- goals: 2-3 concrete short-term goals.',
-    '- openingPosts: 3-5 casual in-world social posts or headlines, each under 280 characters and with likes from 0 to 1000000. Use natural social-media wording, not polished essays.',
+    '- openingPosts: 6-12 casual in-world social posts that feel like a busy feed. The FIRST post is a lead post that starts some drama; every other post is a short reply to that lead post from a different invented account (fans, gossip pages, haters, memes). Each under 280 characters with likes from 0 to 1000000. Use natural social-media wording, not polished essays.',
     '- kind must be one of: post, reply, quote, headline.',
     '- Return ONLY JSON. No markdown, no commentary.',
   ]
@@ -144,7 +144,7 @@ export function buildTurnPrompt(
       ? '- Resolve the ACTIVE EVENT exactly. Keep the same people, names, handles, and situation. Do not replace the source character with another character.'
       : '',
     '- narration: 2 short paragraphs maximum, in second person ("You..."), showing the consequence and one complication. Keep it under 500 characters and end on a decision point.',
-    '- posts: 2-3 casual in-world reactions from the accounts above, each under 180 characters with likes from 0 to 1000000. Use their exact @handles in author.',
+    '- posts: exactly 11-14 posts. The FIRST is a lead post from one account reacting to the action. Every other post is a short reply to that lead post from a DIFFERENT account listed above, so the lead post collects at least 10 replies. Use each exact @handle at most once. Each under 180 characters with likes from 0 to 1000000.',
     '- statChanges: integer deltas from -20 to 20 for every stat. Use 0 when unchanged.',
     '- relationshipChanges: only for listed characters in this world. delta is -20 to 20. status is neutral, friendly, close, romantic, rival, enemy, or mentor.',
     '- events: 0-1 optional world event triggered by the action. Its title is under 60 characters and its description is 1-2 short sentences under 240 characters. followerChange is the player audience delta from -50000 to 100000; use 0 if unchanged.',

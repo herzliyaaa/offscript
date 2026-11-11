@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { ImageIcon } from "@/components/ui/Icons";
 
 type AvatarPickerProps = {
   id: string;
@@ -39,21 +40,31 @@ export default function AvatarPicker({
   }
 
   return (
-    <div className="space-y-2">
-      <span className="block text-center text-sm text-[#71767b]">
-        Avatar {required && <span className="text-red-400" aria-hidden="true">*</span>}
+    <div className="space-y-2.5">
+      <span className="block text-center text-sm font-medium text-muted">
+        Avatar {required && <span className="text-danger" aria-hidden="true">*</span>}
       </span>
       <label
         htmlFor={id}
-        className="relative mx-auto grid h-24 w-24 cursor-pointer place-items-center overflow-hidden rounded-full border-2 border-dashed border-[#536471] bg-[#101418] text-[#71767b] transition hover:border-[#1d9bf0] hover:text-[#1d9bf0]"
+        className="group relative mx-auto grid h-24 w-24 cursor-pointer place-items-center overflow-hidden rounded-full border-2 border-dashed border-line-strong bg-surface-2/60 text-subtle transition-all duration-300 hover:border-accent hover:shadow-[0_0_0_4px_var(--accent-soft)]"
       >
         {preview ? (
-          <img src={preview} alt="Avatar preview" className="h-full w-full object-cover" />
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={preview} alt="Avatar preview" className="h-full w-full object-cover" />
+            <span className="absolute inset-0 grid place-items-center bg-black/50 text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+              <ImageIcon size={22} />
+            </span>
+          </>
         ) : (
-          <span className="text-4xl font-light leading-none" aria-hidden="true">+</span>
+          <span className="flex flex-col items-center gap-1.5">
+            <ImageIcon size={22} className="transition-transform duration-300 group-hover:scale-110 group-hover:text-accent" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider">Upload</span>
+          </span>
         )}
         <span className="sr-only">Choose avatar image{required ? " (required)" : ""}</span>
       </label>
+      <p className="text-center text-xs text-subtle">JPG, PNG, WebP, or GIF · up to 1.5 MB</p>
       <input
         id={id}
         type="file"
@@ -64,9 +75,6 @@ export default function AvatarPicker({
           event.target.value = "";
         }}
       />
-      <p className="text-center text-xs text-[#71767b]">
-        Click the circle to upload a JPG, PNG, WebP, or GIF.
-      </p>
     </div>
   );
 }

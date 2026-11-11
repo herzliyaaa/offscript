@@ -8,6 +8,8 @@ export const envValidationSchema = Joi.object({
   PORT: Joi.number().port().default(3001),
   MODERATION_ADMIN_KEY: Joi.string().allow('').default(''),
 
+  ENERGY_ADMIN_KEY: Joi.string().allow('').default(''),
+
   AI_PROVIDER: Joi.string().valid('ollama', 'deepseek').default('ollama'),
 
   DATABASE_URL: Joi.string()

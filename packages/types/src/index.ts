@@ -106,6 +106,25 @@ export type RelationshipMilestone = {
   createdAt: string;
 };
 
+export type WorldEnergyCosts = {
+  post: number;
+  reply: number;
+  act: number;
+  event: number;
+  message: number;
+};
+
+export type WorldEnergy = {
+  /** Energy left today: unspent daily allowance plus bonus energy. */
+  available: number;
+  dailyLimit: number;
+  dailyRemaining: number;
+  bonus: number;
+  costs: WorldEnergyCosts;
+  /** ISO timestamp of the next UTC midnight, when the daily allowance refills. */
+  resetsAt: string;
+};
+
 export type World = {
   id: number;
   userId: number | null;
@@ -132,6 +151,7 @@ export type World = {
   relationships: Relationship[];
   relationshipMilestones: RelationshipMilestone[];
   unreadNotifications: number;
+  energy?: WorldEnergy;
 };
 
 export type WorldEvent = {
@@ -147,6 +167,7 @@ export type WorldEvent = {
 
 export type ActionOutcome = {
   world: World;
+  energy?: WorldEnergy;
   turn: number;
   narration: string;
   posts: Post[];

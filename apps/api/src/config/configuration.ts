@@ -2,6 +2,7 @@ export default () => ({
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: Number(process.env.PORT ?? 3001),
   moderationAdminKey: process.env.MODERATION_ADMIN_KEY ?? '',
+  energyAdminKey: process.env.ENERGY_ADMIN_KEY ?? '',
   ai: {
     provider: process.env.AI_PROVIDER ?? 'ollama',
     host: process.env.OLLAMA_HOST ?? 'http://127.0.0.1:11434',

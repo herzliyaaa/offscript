@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import LoadingState from "@/components/LoadingState";
 import { api } from "@/lib/api";
@@ -8,9 +8,7 @@ import type { ActionOutcome, EventScenario, World } from "@/lib/types";
 import CastTab, { type CharacterDraft } from "./CastTab";
 import EventsTab from "./EventsTab";
 import FeedTab from "./FeedTab";
-import WorldShell from "./WorldShell";
-
-type Tab = "feed" | "events" | "cast";
+import WorldShell, { type Tab } from "./WorldShell";
 
 const emptyCharacterDraft: CharacterDraft = {
   name: "",
@@ -30,7 +28,6 @@ export default function WorldPage() {
   const [error, setError] = useState<string | null>(null);
   const [lastDuration, setLastDuration] = useState<number | null>(null);
   const [elapsed, setElapsed] = useState(0);
-  const [tab, setTab] = useState<Tab>("feed");
   const [postContent, setPostContent] = useState("");
   const [actionText, setActionText] = useState("");
   const [eventScenario, setEventScenario] = useState<EventScenario | null>(null);
@@ -42,6 +39,10 @@ export default function WorldPage() {
   const [characterAvatarFile, setCharacterAvatarFile] = useState<File | null>(null);
   const [characterAvatarPreview, setCharacterAvatarPreview] = useState("");
   const [handleEdited, setHandleEdited] = useState(false);
+
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const tab: Tab = tabParam === "events" || tabParam === "cast" ? tabParam : "feed";
 
   const loadWorld = useCallback(async () => {
     try {
@@ -77,11 +78,19 @@ export default function WorldPage() {
 
   useEffect(() => {
     if (tab !== "events" || eventScenario || eventOutcome) return;
-    void run(async () => {
-      const result = await api.eventScenarios(id);
-      setEventScenario(result.scenario);
-      setLastDuration(result.durationMs ?? null);
-    });
+    let cancelled = false;
+    api.eventScenarios(id)
+      .then((result) => {
+        if (cancelled) return;
+        setEventScenario(result.scenario);
+        setLastDuration(result.durationMs ?? null);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load events");
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [eventOutcome, eventScenario, id, tab]);
 
   async function submitPost() {
@@ -117,11 +126,17 @@ export default function WorldPage() {
     setEventScenario((current) => current ? { ...current, choices: current.choices.map((choice, choiceIndex) => choiceIndex === index ? { ...choice, ...update } : choice) } : current);
   }
 
-  function rerollScenario() {
-    setEventScenario(null);
-    setEventOutcome(null);
-    setCustomResponse("");
-    setEditingScenario(false);
+  async function rerollScenario() {
+    setElapsed(0);
+    await run(async () => {
+      const result = await api.eventScenarios(id);
+      setEventScenario(result.scenario);
+      setEventOutcome(null);
+      setCustomResponse("");
+      setEditingScenario(false);
+      setLastDuration(result.durationMs ?? null);
+      await loadWorld();
+    });
   }
 
   async function addCharacter() {
@@ -141,7 +156,7 @@ export default function WorldPage() {
   if (loading || !world) return <LoadingState label="Loading world…" />;
 
   return (
-    <WorldShell id={id} world={world} tab={tab} onTabChange={setTab} lastDuration={lastDuration} error={error} busy={busy} elapsed={elapsed}>
+    <WorldShell id={id} world={world} tab={tab} lastDuration={lastDuration} error={error} busy={busy} elapsed={elapsed}>
       {tab === "feed" && <FeedTab world={world} worldId={id} postContent={postContent} setPostContent={setPostContent} actionText={actionText} setActionText={setActionText} onSubmitPost={() => void submitPost()} onSubmitAction={() => void submitAction()} onChanged={loadWorld} busy={busy} />}
       {tab === "events" && <EventsTab world={world} worldId={id} busy={busy} eventScenario={eventScenario} eventOutcome={eventOutcome} customResponse={customResponse} editingScenario={editingScenario} setCustomResponse={setCustomResponse} setEditingScenario={setEditingScenario} chooseEvent={(action) => void chooseEvent(action)} rerollScenario={rerollScenario} updateScenario={updateScenario} updateChoice={updateChoice} onContinue={() => setEventOutcome(null)} />}
       {tab === "cast" && <CastTab world={world} worldId={id} addingCharacter={addingCharacter} setAddingCharacter={setAddingCharacter} characterDraft={characterDraft} setCharacterDraft={setCharacterDraft} characterAvatarPreview={characterAvatarPreview} characterAvatarFile={characterAvatarFile} setCharacterAvatarFile={setCharacterAvatarFile} setCharacterAvatarPreview={setCharacterAvatarPreview} setHandleEdited={setHandleEdited} handleEdited={handleEdited} onAvatarError={setError} onAddCharacter={() => void addCharacter()} busy={busy} />}

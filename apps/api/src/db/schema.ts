@@ -41,6 +41,14 @@ export const worlds = pgTable('worlds', {
   playerName: varchar('player_name', { length: 255 }).notNull(),
   status: varchar({ length: 32 }).notNull().default('active'),
   turn: integer().notNull().default(0),
+  version: integer().notNull().default(0),
+  simulationSeed: varchar('simulation_seed', { length: 64 }).notNull(),
+  // Energy is stored as integer "fifths" (units): 1 energy = 5 units, so the
+  // 0.2 cost of a direct message stays exact. The date column tracks which
+  // UTC day the usage belongs to and forces a lazy daily reset.
+  energyBonusUnits: integer('energy_bonus_units').notNull().default(50),
+  energyUsedUnits: integer('energy_used_units').notNull().default(0),
+  energyDate: varchar('energy_date', { length: 10 }).notNull().default('1970-01-01'),
   state: jsonb().$type<WorldState>().notNull(),
   createdAt: timestamp('created_at', {
     withTimezone: true,
@@ -182,6 +190,38 @@ export const relationshipMilestones = pgTable('relationship_milestones', {
   note: text().notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const relationshipHistory = pgTable('relationship_history', {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  worldId: integer('world_id').notNull().references(() => worlds.id, { onDelete: 'cascade' }),
+  characterId: integer('character_id').notNull().references(() => characters.id, { onDelete: 'cascade' }),
+  turn: integer().notNull(),
+  sourceType: varchar('source_type', { length: 32 }).notNull(),
+  sourceId: integer('source_id'),
+  delta: integer().notNull().default(0),
+  levelBefore: integer('level_before').notNull(),
+  levelAfter: integer('level_after').notNull(),
+  statusBefore: varchar('status_before', { length: 32 }).notNull(),
+  statusAfter: varchar('status_after', { length: 32 }).notNull(),
+  category: varchar({ length: 32 }).notNull(),
+  reason: text().notNull().default(''),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const simulationTurns = pgTable('simulation_turns', {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  worldId: integer('world_id').notNull().references(() => worlds.id, { onDelete: 'cascade' }),
+  turn: integer().notNull(),
+  version: integer().notNull(),
+  inputType: varchar('input_type', { length: 32 }).notNull(),
+  inputPayload: jsonb('input_payload').$type<Record<string, unknown>>().notNull().default({}),
+  outputPayload: jsonb('output_payload').$type<Record<string, unknown>>().notNull().default({}),
+  stateBefore: jsonb('state_before').$type<WorldState>().notNull(),
+  stateAfter: jsonb('state_after').$type<WorldState>().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('simulation_turns_world_turn_unique').on(table.worldId, table.turn),
+]);
 
 export const notifications = pgTable('notifications', {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),

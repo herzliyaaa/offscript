@@ -30,6 +30,7 @@ import {
   ReportContentDto,
   BlockCharacterDto,
   ResolveReportDto,
+  AddEnergyBonusDto,
 } from './dto/world.dto.js';
 import { WorldsService } from './worlds.service.js';
 import type { AvatarUpload } from './world.types.js';
@@ -175,9 +176,21 @@ export class WorldsController {
   }
 
   @Post(':id/event-scenarios')
-  @ApiOperation({ summary: 'Generate five personalized event scenarios with choices' })
+  @ApiOperation({ summary: 'Generate a fresh event scenario with choices (rerolling is free)' })
   generateEventScenarios(@Param('id', ParseIntPipe) id: number) {
     return this.worlds.generateEventScenarios(id);
+  }
+
+  @Post(':id/energy/bonus')
+  @ApiOperation({ summary: 'Grant bonus energy to a world (admin)' })
+  addEnergyBonus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AddEnergyBonusDto,
+    @Req() request: Request,
+  ) {
+    const header = request.headers['x-energy-admin-key'];
+    const adminKey = Array.isArray(header) ? header[0] : header;
+    return this.worlds.addEnergyBonus(id, dto.amount ?? 10, adminKey);
   }
 
   @Get(':id/conversations')

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   NotFoundException,
@@ -45,6 +46,7 @@ import {
   buildPostReactionSchema,
 } from './social.schema.js';
 import { buildStanAccounts } from './stan.accounts.js';
+import { EnergyService, type EnergyAction } from './energy.service.js';
 import {
   buildTurnPrompt,
   buildEventScenariosPrompt,
@@ -73,6 +75,7 @@ import type {
   RelationshipCategory,
   WorldState,
   AvatarUpload,
+  PostKind,
 } from './world.types.js';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -89,6 +92,8 @@ import {
 
 const MAX_FEED = 30;
 const RECENT_FEED_FOR_AI = 10;
+/** Player posts must collect at least this many replies from distinct accounts. */
+const MIN_POST_REPLIES = 10;
 
 function editDistance(a: string, b: string): number {
   const previous = Array.from({ length: b.length + 1 }, (_, index) => index);
@@ -137,6 +142,7 @@ export class WorldService {
     private readonly db: Db,
     private readonly ai: AiService,
     private readonly moderation: ModerationService,
+    private readonly energy: EnergyService,
   ) {}
 
   async saveAvatar(
@@ -194,8 +200,8 @@ export class WorldService {
       {
         system: WORLD_SYSTEM_PROMPT,
         temperature: 0.8,
-        numCtx: 4096,
-        maxTokens: 1400,
+        numCtx: 6144,
+        maxTokens: 2400,
       },
     );
 
@@ -238,6 +244,8 @@ export class WorldService {
           scenarioKey: template.key,
           playerName,
           turn: 0,
+          version: 0,
+          simulationSeed: randomUUID(),
           state,
         })
         .returning();
@@ -347,7 +355,7 @@ export class WorldService {
       const actors = [player, ...castRows, ...stanRows];
       const openingPosts = (generated.openingPosts ?? [])
         .filter((post) => post.content?.trim())
-        .slice(0, 6);
+        .slice(0, 12);
 
       const feed = await this.insertActorPosts(
         tx,
@@ -356,6 +364,7 @@ export class WorldService {
         openingPosts,
         actors,
         null,
+        true,
       );
 
       await tx.insert(schema.worldEvents).values({
@@ -378,17 +387,20 @@ export class WorldService {
 
     return {
       ...created,
+      energy: this.energy.toPublicEnergy(created.world),
       relationships: await this.listRelationships(created.world.id),
       durationMs: Date.now() - aiStartedAt,
     };
   }
 
   async list(userId?: number) {
-    return this.db
+    const rows = await this.db
       .select()
       .from(schema.worlds)
       .where(userId ? eq(schema.worlds.userId, userId) : undefined)
       .orderBy(desc(schema.worlds.updatedAt));
+
+    return rows.map((row) => ({ ...row, energy: this.energy.toPublicEnergy(row) }));
   }
 
   listCelebrityPresets() {
@@ -512,6 +524,7 @@ export class WorldService {
 
     return {
       ...world,
+      energy: this.energy.toPublicEnergy(world),
       player: player ? this.publicCharacter(player) : null,
       cast: characters
         .filter((character) => character.kind === 'celebrity' || character.kind === 'custom')
@@ -691,6 +704,9 @@ export class WorldService {
       throw new NotFoundException('Player character not found');
     }
 
+    const energyAction: EnergyAction = dto.parentId || dto.quotePostId ? 'reply' : 'post';
+    await this.energy.assert(id, energyAction);
+
     const parent = (dto.parentId ?? dto.quotePostId)
       ? await this.getPostRow(id, dto.parentId ?? dto.quotePostId!)
       : null;
@@ -750,8 +766,8 @@ export class WorldService {
         model: this.ai.fastModelName,
         system: WORLD_SYSTEM_PROMPT,
         temperature: 0.9,
-        numCtx: 1536,
-        maxTokens: Math.min(1400, Math.max(480, actors.length * 140)),
+        numCtx: 4096,
+        maxTokens: Math.min(2600, Math.max(640, actors.length * 190)),
       },
     );
 
@@ -766,9 +782,10 @@ export class WorldService {
         reply.author.replace(/^@/, '').toLowerCase(),
       ),
     );
-    if (uniqueReplies.size !== actors.length) {
+    const requiredReplies = Math.min(actors.length, MIN_POST_REPLIES);
+    if (uniqueReplies.size < requiredReplies) {
       throw new BadRequestException(
-        'The simulation did not produce a reply from every character. Please try again.',
+        `The simulation did not produce enough replies (${uniqueReplies.size}/${requiredReplies}). Please try again.`,
       );
     }
 
@@ -831,17 +848,29 @@ export class WorldService {
         .update(schema.worlds)
         .set({
           turn: nextTurn,
+          version: sql`${schema.worlds.version} + 1`,
           state: {
             ...state,
             summary: this.clip(generated.summary, 180) || state.summary,
           },
           updatedAt: new Date(),
         })
-        .where(eq(schema.worlds.id, id))
+        .where(and(eq(schema.worlds.id, id), eq(schema.worlds.version, world.version)))
         .returning();
+      if (!updated) {
+        throw new ConflictException('This world changed while the action was processing. Please retry.');
+      }
+      await this.recordSimulationTurn(tx, world, updated, 'post', { content: dto.content }, {
+        statChanges: generated.statChanges,
+        relationshipChanges: generated.relationshipChanges,
+        events: generated.events,
+      });
+
+      const energy = await this.energy.spend(id, energyAction, tx);
 
       return {
-        world: updated,
+        world: { ...updated, energy },
+        energy,
         post: { ...playerPost, replyCount: replies.length },
         replies,
       };
@@ -968,6 +997,9 @@ export class WorldService {
       throw new BadRequestException('You cannot message this character while they are blocked or muted.');
     }
 
+    // A direct message costs 0.2 energy (1 energy = 5 messages).
+    await this.energy.assert(id, 'message');
+
     const relationshipRow = await this.getRelationshipRow(id, characterId);
     const relationship: RelationshipContext = relationshipRow
       ? {
@@ -1093,16 +1125,26 @@ export class WorldService {
         .update(schema.worlds)
         .set({
           turn: nextTurn,
+          version: sql`${schema.worlds.version} + 1`,
           state: {
             ...world.state,
             summary: this.clip(generated.summary, 180) || world.state.summary,
           },
           updatedAt: new Date(),
         })
-        .where(eq(schema.worlds.id, id))
+        .where(and(eq(schema.worlds.id, id), eq(schema.worlds.version, world.version)))
         .returning();
+      if (!updated) {
+        throw new ConflictException('This world changed while the message was processing. Please retry.');
+      }
+      await this.recordSimulationTurn(tx, world, updated, 'dm', { characterId, content: dto.content }, {
+        relationshipDelta,
+        events: generated.events,
+      });
 
-      return { world: updated, messages: [playerMessage, characterMessage] };
+      const energy = await this.energy.spend(id, 'message', tx);
+
+      return { world: { ...updated, energy }, energy, messages: [playerMessage, characterMessage] };
     });
 
     const relationships = await this.listRelationships(id);
@@ -1128,6 +1170,8 @@ export class WorldService {
     if (!player) {
       throw new NotFoundException('Player character not found');
     }
+
+    await this.energy.assert(id, 'event');
 
     const actors = characters.filter(
       (character) => character.kind !== 'player',
@@ -1160,8 +1204,8 @@ export class WorldService {
       {
         system: WORLD_SYSTEM_PROMPT,
         temperature: 0.8,
-        numCtx: 1536,
-        maxTokens: 700,
+        numCtx: 4096,
+        maxTokens: 2200,
       },
     );
 
@@ -1191,6 +1235,7 @@ export class WorldService {
         generated.posts ?? [],
         actors,
         null,
+        true,
       );
       await this.applyRelationshipChanges(
         tx,
@@ -1208,6 +1253,7 @@ export class WorldService {
         .update(schema.worlds)
         .set({
           turn: nextTurn,
+          version: sql`${schema.worlds.version} + 1`,
           state: {
             ...state,
             summary: this.clip(generated.summary, 180) || state.summary,
@@ -1215,10 +1261,20 @@ export class WorldService {
           },
           updatedAt: new Date(),
         })
-        .where(eq(schema.worlds.id, id))
+        .where(and(eq(schema.worlds.id, id), eq(schema.worlds.version, world.version)))
         .returning();
+      if (!updated) {
+        throw new ConflictException('This world changed while the event was processing. Please retry.');
+      }
+      await this.recordSimulationTurn(tx, world, updated, 'event', { type: dto.type, prompt: dto.prompt }, {
+        statChanges: generated.statChanges,
+        relationshipChanges: generated.relationshipChanges,
+        event: generated,
+      });
 
-      return { world: updated, event, posts };
+      const energy = await this.energy.spend(id, 'event', tx);
+
+      return { world: { ...updated, energy }, energy, event, posts };
     });
 
     return {
@@ -1238,6 +1294,7 @@ export class WorldService {
       throw new NotFoundException('Player character not found');
     }
 
+    // Rerolls are free: only submitting a response to a scenario costs energy.
     const actors = characters.filter((character) => character.kind !== 'player');
     const relationships = await this.relationshipContext(id);
     const aiStartedAt = Date.now();
@@ -1315,6 +1372,7 @@ export class WorldService {
     const world = await this.ensureWorld(id);
     const template = this.getScenario(world.scenarioKey);
     const characters = await this.getCharacters(id);
+    await this.energy.assert(id, 'act');
     const actors = characters.filter(
       (character) => character.kind !== 'player',
     );
@@ -1343,8 +1401,8 @@ export class WorldService {
       {
         system: WORLD_SYSTEM_PROMPT,
         temperature: 0.8,
-        numCtx: 2048,
-        maxTokens: 800,
+        numCtx: 4096,
+        maxTokens: 2200,
       },
     );
 
@@ -1359,6 +1417,7 @@ export class WorldService {
         .update(schema.worlds)
         .set({
           turn: nextTurn,
+          version: sql`${schema.worlds.version} + 1`,
           state: {
             ...state,
             summary: this.clip(generated.summary, 180) || state.summary,
@@ -1366,8 +1425,19 @@ export class WorldService {
           },
           updatedAt: new Date(),
         })
-        .where(eq(schema.worlds.id, id))
+        .where(and(eq(schema.worlds.id, id), eq(schema.worlds.version, world.version)))
         .returning();
+      if (!row) {
+        throw new ConflictException('This world changed while the action was processing. Please retry.');
+      }
+      await this.recordSimulationTurn(tx, world, row, 'action', { action }, {
+        narration: generated.narration,
+        statChanges: generated.statChanges,
+        relationshipChanges: generated.relationshipChanges,
+        events: generated.events,
+      });
+
+      const energy = await this.energy.spend(id, 'act', tx);
 
       const posts = await this.insertActorPosts(
         tx,
@@ -1376,6 +1446,7 @@ export class WorldService {
         generated.posts ?? [],
         actors,
         null,
+        true,
       );
       await this.insertEvents(tx, id, nextTurn, generated.events ?? []);
       await this.applyFollowerChange(
@@ -1408,11 +1479,12 @@ export class WorldService {
         },
       ]);
 
-      return { world: row, posts };
+      return { world: { ...row, energy }, energy, posts };
     });
 
     return {
       world: updated.world,
+      energy: updated.energy,
       turn: nextTurn,
       narration: this.clip(generated.narration, 500),
       posts: updated.posts,
@@ -1425,6 +1497,38 @@ export class WorldService {
     };
   }
 
+  /** Grants bonus energy to a world. Guarded by ENERGY_ADMIN_KEY when set. */
+  async addEnergyBonus(id: number, amount: number, adminKey?: string) {
+    await this.ensureWorld(id);
+    this.energy.assertAdmin(adminKey);
+    return this.energy.addBonus(id, amount);
+  }
+
+  private async recordSimulationTurn(
+    tx: Tx,
+    before: typeof schema.worlds.$inferSelect,
+    after: typeof schema.worlds.$inferSelect,
+    inputType: string,
+    inputPayload: Record<string, unknown>,
+    outputPayload: Record<string, unknown>,
+  ): Promise<void> {
+    await tx.insert(schema.simulationTurns).values({
+      worldId: after.id,
+      turn: after.turn,
+      version: after.version,
+      inputType,
+      inputPayload,
+      outputPayload,
+      stateBefore: before.state,
+      stateAfter: after.state,
+    });
+  }
+
+  /**
+   * Inserts AI-generated posts. With `threadUnderLead`, the first post is a
+   * standalone lead and every other post becomes a reply to it, so actor
+   * posts also carry visible reply threads.
+   */
   private async insertActorPosts(
     tx: Tx,
     worldId: number,
@@ -1432,48 +1536,79 @@ export class WorldService {
     posts: GeneratedPost[],
     actors: CharacterRow[],
     parentId: number | null,
+    threadUnderLead = false,
   ): Promise<PostRow[]> {
     const valid = posts
       .filter((post) => post.content?.trim())
       .filter((post) => this.moderation.check(post.content, 'post').allowed)
-      .slice(0, 8);
+      .slice(0, 24);
 
     if (!valid.length) {
       return [];
     }
 
-    const rows = await tx
-      .insert(schema.posts)
-      .values(
-        valid.map((post) => {
-          const actor = this.resolveActor(post.author, actors);
-          return {
-            worldId,
-            characterId: actor?.id ?? null,
-            parentId,
-            authorName:
-              actor?.name ?? (this.clip(post.author, 255) || 'Anonymous'),
-            authorHandle:
-              actor?.handle ??
-              `@${this.clip(post.author, 40).replace(/^@+/, '') || 'anonymous'}`,
-            authorKind: actor?.kind ?? ('stan' as const),
-            content: this.clip(post.content, 180),
-            kind: normalizeFeedKind(post.kind),
-            likes: clamp(Math.round(post.likes ?? 0), 0, 1_000_000),
-            turn,
-          };
-        }),
-      )
-      .returning();
+    const toValues = (
+      post: GeneratedPost,
+      parent: number | null,
+      kind?: PostKind,
+    ) => {
+      const actor = this.resolveActor(post.author, actors);
+      return {
+        worldId,
+        characterId: actor?.id ?? null,
+        parentId: parent,
+        authorName:
+          actor?.name ?? (this.clip(post.author, 255) || 'Anonymous'),
+        authorHandle:
+          actor?.handle ??
+          `@${this.clip(post.author, 40).replace(/^@+/, '') || 'anonymous'}`,
+        authorKind: actor?.kind ?? ('stan' as const),
+        content: this.clip(post.content, 180),
+        kind: kind ?? normalizeFeedKind(post.kind),
+        likes: clamp(Math.round(post.likes ?? 0), 0, 1_000_000),
+        turn,
+      };
+    };
 
-    if (parentId) {
-      await tx
-        .update(schema.posts)
-        .set({ replyCount: sql`${schema.posts.replyCount} + ${rows.length}` })
-        .where(eq(schema.posts.id, parentId));
+    if (parentId !== null || !threadUnderLead || valid.length === 1) {
+      const rows = await tx
+        .insert(schema.posts)
+        .values(valid.map((post) => toValues(post, parentId)))
+        .returning();
+
+      if (parentId) {
+        await tx
+          .update(schema.posts)
+          .set({ replyCount: sql`${schema.posts.replyCount} + ${rows.length}` })
+          .where(eq(schema.posts.id, parentId));
+      }
+
+      return rows;
     }
 
-    return rows;
+    const [lead, ...rest] = valid;
+    const [leadRow] = await tx
+      .insert(schema.posts)
+      .values([toValues(lead, null)])
+      .returning();
+    const replyRows = await tx
+      .insert(schema.posts)
+      .values(rest.map((post) => toValues(post, leadRow.id, 'reply')))
+      .returning();
+
+    if (replyRows.length) {
+      await tx
+        .update(schema.posts)
+        .set({
+          replyCount: sql`${schema.posts.replyCount} + ${replyRows.length}`,
+        })
+        .where(eq(schema.posts.id, leadRow.id));
+    }
+
+    return [
+      { ...leadRow, replyCount: leadRow.replyCount + replyRows.length },
+      ...replyRows,
+    ];
   }
 
   private async insertEvents(
@@ -1641,6 +1776,23 @@ export class WorldService {
           updatedAt: new Date(),
         },
       });
+
+    await tx.insert(schema.relationshipHistory).values({
+      worldId,
+      characterId: character.id,
+      turn: (await tx
+        .select({ turn: schema.worlds.turn })
+        .from(schema.worlds)
+        .where(eq(schema.worlds.id, worldId)))[0]?.turn ?? 0,
+      sourceType: 'simulation',
+      delta: change,
+      levelBefore: existing?.level ?? 0,
+      levelAfter: level,
+      statusBefore: existing?.status ?? 'neutral',
+      statusAfter: nextStatus,
+      category: nextCategory,
+      reason: nextNote,
+    });
 
     if (existing && existing.status !== nextStatus) {
       const [world] = await tx.select({ turn: schema.worlds.turn }).from(schema.worlds).where(eq(schema.worlds.id, worldId));

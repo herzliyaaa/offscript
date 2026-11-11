@@ -11,6 +11,7 @@ import { MessageService } from './message.service.js';
 import { EventService } from './event.service.js';
 import { SimulationService } from './simulation.service.js';
 import { AvatarService } from './avatar.service.js';
+import { EnergyService } from './energy.service.js';
 
 @Module({
   imports: [DatabaseModule, AiModule, ModerationModule],
@@ -23,6 +24,7 @@ import { AvatarService } from './avatar.service.js';
     EventService,
     SimulationService,
     AvatarService,
+    EnergyService,
     WorldsService,
   ],
   exports: [

@@ -88,6 +88,66 @@ export function buildStanAccounts(
         voice: 'Meme slang, "not the...", crying emojis.',
       },
     },
+    {
+      name: `${playerName} Updates`,
+      handle: `@${slug}_updates`,
+      role: 'Fan news account',
+      bio: `Tracks every ${playerName} move in real time.`,
+      persona: {
+        personality: 'Excitable, tireless, always online.',
+        publicPersona: `The fastest ${playerName} news source.`,
+        secret: 'Steals most updates from smaller accounts.',
+        voice: '"BREAKING:", all caps, timestamps, thread emojis.',
+      },
+    },
+    {
+      name: `${playerName} Parody`,
+      handle: `@${slug}_parody`,
+      role: 'Parody account',
+      bio: `A loving (mostly) parody of ${playerName}.`,
+      persona: {
+        personality: 'Goofy, exaggerated, relentless.',
+        publicPersona: 'Just a parody account, relax.',
+        secret: 'Secretly hopes the player finds it funny.',
+        voice: 'Exaggerated impressions, "(parody)" in bio energy, bad puns.',
+      },
+    },
+    {
+      name: 'Hot Take Podcast',
+      handle: '@hot_take_pod',
+      role: 'Podcast host',
+      bio: 'Turns every celebrity moment into episode material.',
+      persona: {
+        personality: 'Loud, opinionated, contrarian.',
+        publicPersona: 'Host of the Hot Take Podcast.',
+        secret: 'Manufactures drama for downloads.',
+        voice: '"On this week\'s episode...", rhetorical questions, "I\'m just saying".',
+      },
+    },
+    {
+      name: 'Chart Watcher',
+      handle: '@chart_watcher',
+      role: 'Data nerd account',
+      bio: 'Tracks sales, streams, and follower counts for everyone.',
+      persona: {
+        personality: 'Analytical, smug, precise.',
+        publicPersona: 'Just the numbers.',
+        secret: 'Bends the numbers to fit a narrative.',
+        voice: 'Percentages, comma splices, "the stats don\'t lie", graphs.',
+      },
+    },
+    {
+      name: 'Day One Fan',
+      handle: `@${slug}_dayone`,
+      role: 'Loyal longtime fan',
+      bio: `Claims to have supported ${playerName} before anyone else did.`,
+      persona: {
+        personality: 'Loyal, nostalgic, gatekeepy.',
+        publicPersona: 'A true day-one supporter.',
+        secret: 'Only became a fan last year.',
+        voice: '"I remember when...", "we\'ve been here since day one", sigh emojis.',
+      },
+    },
   ];
 
   return seeds.map((seed) => ({

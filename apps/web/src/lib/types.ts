@@ -5,6 +5,7 @@ import type {
   EventScenario as SharedEventScenario,
   Post as SharedPost,
   World as SharedWorld,
+  WorldEnergy as SharedWorldEnergy,
 } from "@offscript/types";
 
 export type Character = SharedCharacter;
@@ -65,6 +66,8 @@ export type EventScenario = SharedEventScenario;
 export type ActionOutcome = SharedActionOutcome;
 
 export type World = SharedWorld;
+
+export type WorldEnergy = SharedWorldEnergy;
 
 export type Notification = {
   id: number;

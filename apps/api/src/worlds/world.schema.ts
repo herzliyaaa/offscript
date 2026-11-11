@@ -72,8 +72,8 @@ export function buildWorldSchema(template: ScenarioTemplate) {
       },
       openingPosts: {
         type: 'array',
-        minItems: 3,
-        maxItems: 5,
+        minItems: 6,
+        maxItems: 12,
         items: postSchema,
       },
     },
@@ -117,7 +117,12 @@ export function buildTurnSchema(template: ScenarioTemplate) {
           additionalProperties: false,
         },
       },
-      posts: { type: 'array', items: postSchema },
+      posts: {
+        type: 'array',
+        minItems: 11,
+        maxItems: 14,
+        items: postSchema,
+      },
       newGoals: { type: 'array', items: { type: 'string' } },
       events: {
         type: 'array',

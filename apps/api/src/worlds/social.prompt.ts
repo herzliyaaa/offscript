@@ -203,7 +203,7 @@ export function buildEventPrompt(
     '- title: a short, punchy headline.',
     '- description: 1-2 short paragraphs in second person ("You..."), under 450 characters, showing how the event hits the player. End on a decision point.',
     '- type: scandal, opportunity, rivalry, romance, career, public, or wildcard.',
-    '- posts: 2-3 casual social media reactions or headlines from the accounts above. Use exact @handles. Each under 180 characters with likes from 0 to 1000000.',
+    '- posts: exactly 11-14 posts. The FIRST is a lead post from one account reacting to the event. Every other post is a short reply to that lead post from a DIFFERENT account listed above, so the lead post collects at least 10 replies. Use each exact @handle at most once. Each under 180 characters with likes from 0 to 1000000.',
     '- relationshipChanges: only for listed characters in this world. delta -20 to 20. status is neutral, friendly, close, romantic, rival, enemy, or mentor.',
     '- followerChange: player follower delta from -50000 to 100000 if this event changes public reach; otherwise 0.',
     '- statChanges: integer deltas from -20 to 20 for every stat. Use 0 when unchanged.',

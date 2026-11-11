@@ -125,8 +125,8 @@ export function buildEventSchema(template: ScenarioTemplate) {
       followerChange: { type: 'integer', minimum: -50000, maximum: 100000 },
       posts: {
         type: 'array',
-        minItems: 2,
-        maxItems: 3,
+        minItems: 11,
+        maxItems: 14,
         items: reactionPostSchema,
       },
       relationshipChanges: {

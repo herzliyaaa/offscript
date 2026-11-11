@@ -12,6 +12,7 @@ import type {
   Scenario,
   UpdateCharacterInput,
   World,
+  WorldEnergy,
   WorldEvent,
 } from './types';
 import type { ApiError } from '@offscript/types';
@@ -32,8 +33,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const text = await res.text();
     let message = text || `Request failed: ${res.status}`;
     try {
-      const error = JSON.parse(text) as ApiError;
-      message = Array.isArray(error.message) ? error.message.join(', ') : error.message;
+      const error = JSON.parse(text) as ApiError & { message?: unknown };
+      const raw = error.message;
+      if (Array.isArray(raw)) {
+        message = raw.join(', ');
+      } else if (typeof raw === 'string') {
+        message = raw;
+      } else if (raw && typeof raw === 'object') {
+        // Custom exceptions (e.g. INSUFFICIENT_ENERGY) nest their payload
+        // under `message`; surface the human-readable string inside it.
+        const nested = (raw as { message?: unknown }).message;
+        if (typeof nested === 'string') message = nested;
+      }
     } catch {
       // Preserve the server's plain-text error response.
     }
@@ -83,7 +94,7 @@ export const api = {
   feed: (id: number, limit = 30) =>
     request<Post[]>(`/worlds/${id}/feed?limit=${limit}`),
   createPost: (id: number, content: string, parentId?: number, quotePostId?: number) =>
-    request<{ world: World; post: Post; replies: Post[]; events: unknown[]; relationships: Relationship[]; durationMs?: number }>(
+    request<{ world: World; energy?: WorldEnergy; post: Post; replies: Post[]; events: unknown[]; relationships: Relationship[]; durationMs?: number }>(
       `/worlds/${id}/posts`,
       {
         method: 'POST',
@@ -121,7 +132,7 @@ export const api = {
   events: (id: number, limit = 20) =>
     request<WorldEvent[]>(`/worlds/${id}/events?limit=${limit}`),
   generateEvent: (id: number, type?: string, prompt?: string) =>
-    request<{ world: World; event: WorldEvent; posts: Post[]; relationships: Relationship[]; durationMs?: number }>(
+    request<{ world: World; energy?: WorldEnergy; event: WorldEvent; posts: Post[]; relationships: Relationship[]; durationMs?: number }>(
       `/worlds/${id}/events`,
       {
         method: 'POST',
@@ -133,6 +144,12 @@ export const api = {
       `/worlds/${id}/event-scenarios`,
       { method: 'POST' },
     ),
+  addEnergyBonus: (id: number, amount = 10, key?: string) =>
+    request<WorldEnergy>(`/worlds/${id}/energy/bonus`, {
+      method: 'POST',
+      body: JSON.stringify({ amount }),
+      ...(key ? { headers: { 'x-energy-admin-key': key } } : {}),
+    }),
   conversations: (id: number) =>
     request<Conversation[]>(`/worlds/${id}/conversations`),
   dms: (id: number, characterId: number, limit = 100) =>
@@ -142,6 +159,7 @@ export const api = {
   sendDm: (id: number, characterId: number, content: string) =>
     request<{
       world: World;
+      energy?: WorldEnergy;
       messages: DirectMessage[];
       character: Character;
       events: unknown[];

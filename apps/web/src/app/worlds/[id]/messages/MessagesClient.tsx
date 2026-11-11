@@ -1,20 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import ThemeToggle from "@/components/ThemeToggle";
 import LoadingState from "@/components/LoadingState";
+import Avatar from "@/components/ui/Avatar";
+import Button from "@/components/ui/Button";
+import { ArrowLeftIcon, HeartIcon, MailIcon, SendIcon, TypingDots, ZapIcon } from "@/components/ui/Icons";
+import WorldNav from "../WorldNav";
 import type { Conversation, DirectMessage, Relationship, World } from "@/lib/types";
+import { canAfford, energyCostHint } from "@/lib/energy";
 
-function initials(name: string) {
-  return name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+function formatTime(iso: string) {
+  try {
+    return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  } catch {
+    return "";
+  }
 }
 
 export default function MessagesClient() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
   const id = Number(params.id);
   const [world, setWorld] = useState<World | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -44,31 +51,55 @@ export default function MessagesClient() {
   }, [id]);
 
   useEffect(() => {
-    Promise.all([api.world(id), loadConversations()])
+    let cancelled = false;
+    Promise.all([api.world(id), api.conversations(id)])
       .then(([nextWorld, nextConversations]) => {
+        if (cancelled) return;
         setWorld(nextWorld);
+        setConversations(nextConversations);
         const saved = window.localStorage.getItem(`offscript:last-dm:${id}`);
         const selected = nextConversations.find((item) => item.character.id === Number(saved))
           ?? [...nextConversations].sort((a, b) => (b.lastMessage?.createdAt ?? "").localeCompare(a.lastMessage?.createdAt ?? ""))[0];
         if (selected) setActiveChar(selected.character.id);
       })
-      .catch((reason) => setError(reason instanceof Error ? reason.message : "Failed to load messages"));
-  }, [id, loadConversations]);
+      .catch((reason) => {
+        if (!cancelled) setError(reason instanceof Error ? reason.message : "Failed to load messages");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   useEffect(() => {
     if (!activeChar) return;
     window.localStorage.setItem(`offscript:last-dm:${id}`, String(activeChar));
+    let cancelled = false;
+    api.dms(id, activeChar)
+      .then((result) => {
+        if (cancelled) return;
+        setMessages([...result.messages].sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
+      })
+      .catch(() => {
+        if (!cancelled) setMessages([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeChar, id]);
+
+  function selectConversation(characterId: number) {
+    if (characterId === activeChar) return;
+    setActiveChar(characterId);
     setRelationshipDelta(null);
     setActiveRelationship(null);
-    loadMessages(activeChar);
-  }, [activeChar, id, loadMessages]);
+  }
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [messages, typingChar]);
 
   async function submitDm() {
-    if (!activeChar || !dmText.trim() || busy) return;
+    if (!activeChar || !dmText.trim() || busy || !canAfford(world?.energy, "message")) return;
     const content = dmText.trim();
     const optimisticId = -Date.now();
     setMessages((current) => [...current, {
@@ -83,6 +114,9 @@ export default function MessagesClient() {
       const result = await api.sendDm(id, activeChar, content);
       setRelationshipDelta(result.relationshipDelta);
       setActiveRelationship(result.relationship);
+      if (result.energy) {
+        setWorld((current) => current ? { ...current, energy: result.energy } : current);
+      }
       await loadMessages(activeChar);
       await loadConversations();
     } catch (reason) {
@@ -98,71 +132,232 @@ export default function MessagesClient() {
   const conversation = conversations.find((item) => item.character.id === activeChar);
   const character = conversation?.character;
   const relationship = activeRelationship ?? conversation?.relationship ?? null;
+  const canSend = canAfford(world.energy, "message");
 
   return (
-    <main className="min-h-screen bg-[#0f1419] text-[#e7e9ea]">
-      <div className="mx-auto flex max-w-[1280px]">
-        <aside className="sticky top-0 hidden h-screen w-[235px] shrink-0 flex-col px-4 py-3 lg:flex">
-          <Link className="mb-5 grid h-12 w-12 place-items-center rounded-full text-3xl font-black text-[#1d9bf0]" href={`/worlds/${id}`}>𝕏</Link>
-          <nav className="space-y-1">
-            <Link className="block rounded-full px-4 py-3 text-lg hover:bg-white/10" href={`/worlds/${id}`}>⌂ <span className="ml-3">Home</span></Link>
-            <Link className="block rounded-full px-4 py-3 text-lg font-bold hover:bg-white/10" href={`/worlds/${id}/messages`}>✉ <span className="ml-3">Messages</span></Link>
-            <Link className="block rounded-full px-4 py-3 text-lg hover:bg-white/10" href={`/worlds/${id}?tab=cast`}>◎ <span className="ml-3">Profiles</span></Link>
-          </nav>
-          <div className="mt-auto space-y-2 border-t border-[#2f3336] pt-4"><div className="truncate font-bold">{world.playerName}</div><div className="truncate text-sm text-[#71767b]">{world.name}</div><ThemeToggle /><button className="text-sm text-[#71767b]" onClick={() => router.push("/")}>← All worlds</button></div>
-        </aside>
-        <section className="min-h-screen w-full max-w-[720px] border-x border-[#2f3336]">
-          <header className="border-b border-[#2f3336] px-5 py-4"><h1 className="text-xl font-bold">Messages</h1><p className="text-sm text-[#71767b]">Private conversations in {world.name}</p></header>
-          {error && <div className="border-b border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
-          <div className="grid h-[calc(100vh-78px)] min-h-[520px] md:grid-cols-[230px_1fr]">
-            <div className="max-h-full overflow-y-auto border-r border-[#2f3336] p-3">
-              {conversations.map((item) => <button className={`mb-2 flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-white/10 ${activeChar === item.character.id ? "bg-[#1d9bf0]/10" : ""}`} key={item.character.id} onClick={() => setActiveChar(item.character.id)}>
-                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#1d9bf0] to-[#7856ff] text-xs font-bold">{initials(item.character.name)}</div>
-                <div className="min-w-0"><div className="truncate font-bold">{item.character.name}</div><div className="truncate text-xs text-[#71767b]">{item.lastMessage?.content ?? item.character.handle}</div></div>
-              </button>)}
-            </div>
-            <div className="flex min-h-0 flex-col">
-              {character ? <>
-                <header className="flex items-center gap-3 border-b border-[#2f3336] p-4"><div className="grid h-11 w-11 place-items-center rounded-full bg-gradient-to-br from-[#1d9bf0] to-[#7856ff] font-bold">{initials(character.name)}</div><div><div className="font-bold">{character.name}</div><div className="text-sm text-[#71767b]">{character.handle}</div></div><Link className="ml-auto rounded-full border border-[#536471] px-4 py-1.5 text-sm font-bold" href={`/worlds/${id}/profile/${character.id}`}>Profile</Link></header>
-                <div className="border-b border-[#2f3336] px-4 py-3">
-                  <div className="flex items-center justify-between gap-3 text-xs">
-                    <span className="text-[#71767b]">Relationship</span>
-                    {relationship && (
-                      <span className="capitalize text-[#b8c0c7]">
-                        {relationship.status} · {relationship.level}/100
+    <main className="min-h-screen pb-16 lg:pb-0">
+      <div className="mx-auto flex max-w-[1440px] justify-center">
+        <WorldNav
+          worldId={id}
+          worldName={world.name}
+          playerName={world.playerName}
+          playerAvatarUrl={world.player?.avatarUrl ?? null}
+          active="messages"
+          unreadNotifications={world.unreadNotifications}
+          energy={world.energy}
+        />
+
+        <section className="flex h-[calc(100dvh-4rem)] w-full max-w-[1000px] flex-col border-x border-line lg:h-screen">
+          <header className="border-b border-line px-5 py-4">
+            <h1 className="text-xl font-bold tracking-tight">Messages</h1>
+            <p className="mt-0.5 text-[13px] text-muted">Private conversations in {world.name}</p>
+          </header>
+
+          {error && (
+            <div className="border-b border-danger/30 bg-danger/10 px-5 py-3 text-sm text-danger animate-fade-in">{error}</div>
+          )}
+
+          <div className="grid min-h-0 flex-1 md:grid-cols-[290px_1fr]">
+            {/* Conversation list */}
+            <div
+              className={`min-h-0 overflow-y-auto border-line p-3 md:border-r ${activeChar ? "hidden md:block" : "block"}`}
+            >
+              {conversations.map((item) => {
+                const isActive = activeChar === item.character.id;
+                return (
+                  <button
+                    className={`focus-ring mb-1 flex w-full items-center gap-3 rounded-xl p-3 text-left transition-colors ${
+                      isActive ? "bg-accent/10" : "hover:bg-foreground/[0.05]"
+                    }`}
+                    key={item.character.id}
+                    onClick={() => selectConversation(item.character.id)}
+                  >
+                    <Avatar name={item.character.name} src={item.character.avatarUrl} size="md" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <div className="truncate text-sm font-bold">{item.character.name}</div>
+                        {item.lastMessage && (
+                          <div className="shrink-0 text-[10px] font-medium tabular-nums text-subtle">
+                            {formatTime(item.lastMessage.createdAt)}
+                          </div>
+                        )}
+                      </div>
+                      <div className="truncate text-xs text-subtle">
+                        {item.lastMessage?.content ?? item.character.handle}
+                      </div>
+                    </div>
+                    {item.unreadCount > 0 && (
+                      <span className="grid min-w-5 shrink-0 place-items-center rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 px-1.5 text-[10px] font-bold text-white">
+                        {item.unreadCount}
                       </span>
                     )}
-                  </div>
-                  {relationshipDelta !== null && relationshipDelta !== 0 && (
-                    <div
-                      className={`mt-2 rounded-xl border px-3 py-2 text-sm font-medium ${
-                        relationshipDelta > 0
-                          ? "border-[#00ba7c]/40 bg-[#00ba7c]/10 text-[#00ba7c]"
-                          : "border-[#f91880]/40 bg-[#f91880]/10 text-[#f91880]"
-                      }`}
-                      role="status"
-                      aria-live="polite"
+                  </button>
+                );
+              })}
+              {conversations.length === 0 && (
+                <p className="p-6 text-center text-sm text-subtle">No conversations yet.</p>
+              )}
+            </div>
+
+            {/* Chat pane */}
+            <div className={`min-h-0 flex-col ${activeChar ? "flex" : "hidden md:flex"}`}>
+              {character ? (
+                <>
+                  <header className="flex items-center gap-3 border-b border-line px-4 py-3">
+                    <button
+                      className="icon-btn h-9 w-9 md:hidden"
+                      onClick={() => setActiveChar(null)}
+                      aria-label="Back to conversations"
                     >
-                      {relationshipDelta > 0 ? "Relationship increased" : "Relationship decreased"}{" "}
-                      <strong>
-                        {relationshipDelta > 0
-                          ? `▲ +${relationshipDelta}`
-                          : `▼ ${relationshipDelta}`}
-                      </strong>
+                      <ArrowLeftIcon size={18} />
+                    </button>
+                    <Avatar name={character.name} src={character.avatarUrl} size="md" />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-bold leading-tight">{character.name}</div>
+                      <div className="truncate text-xs text-subtle">{character.handle}</div>
                     </div>
-                  )}
+                    <Link
+                      className="focus-ring shrink-0 rounded-full border border-line px-4 py-1.5 text-xs font-bold text-muted transition-all hover:border-accent hover:text-accent"
+                      href={`/worlds/${id}/profile/${character.id}`}
+                    >
+                      Profile
+                    </Link>
+                  </header>
+
+                  <div className="border-b border-line px-4 py-2.5">
+                    <div className="flex items-center justify-between gap-3 text-xs">
+                      <span className="flex items-center gap-1.5 text-subtle">
+                        <HeartIcon size={12} /> Relationship
+                      </span>
+                      {relationship ? (
+                        <span className="capitalize text-muted">
+                          <b className={`font-bold ${relationship.level >= 60 ? "text-success" : relationship.level < 0 ? "text-danger" : "text-accent"}`}>
+                            {relationship.status}
+                          </b>{" "}
+                          · {relationship.level}/100
+                        </span>
+                      ) : (
+                        <span className="text-subtle">—</span>
+                      )}
+                    </div>
+                    {relationship && (
+                      <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-surface-3">
+                        <div
+                          className={`h-full rounded-full transition-[width] duration-700 ${
+                            relationship.level < 0
+                              ? "bg-gradient-to-r from-rose-500 to-red-400"
+                              : relationship.level >= 60
+                                ? "bg-gradient-to-r from-emerald-400 to-teal-400"
+                                : "bg-gradient-to-r from-indigo-400 to-violet-400"
+                          }`}
+                          style={{ width: `${Math.max(2, Math.min(100, ((relationship.level + 100) / 2)))}%` }}
+                        />
+                      </div>
+                    )}
+                    {relationshipDelta !== null && relationshipDelta !== 0 && (
+                      <div
+                        className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold animate-pop ${
+                          relationshipDelta > 0 ? "bg-success/15 text-success" : "bg-danger/15 text-danger"
+                        }`}
+                        role="status"
+                        aria-live="polite"
+                      >
+                        {relationshipDelta > 0 ? "↑" : "↓"} {Math.abs(relationshipDelta)}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-4">
+                    {messages.map((message, index) => {
+                      const isPlayer = message.sender === "player";
+                      const prev = messages[index - 1];
+                      const grouped = prev && prev.sender === message.sender;
+                      return (
+                        <div
+                          key={message.id}
+                          className={`flex items-end gap-2 ${isPlayer ? "justify-end" : "justify-start"} ${grouped ? "mt-0.5" : "mt-3"}`}
+                        >
+                          {!isPlayer && (
+                            <span className={grouped ? "w-8 shrink-0" : "shrink-0"}>
+                              {!grouped && <Avatar name={character.name} src={character.avatarUrl} size="xs" />}
+                            </span>
+                          )}
+                          <div
+                            className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed animate-slide-up ${
+                              isPlayer
+                                ? "rounded-br-md bg-gradient-to-br from-indigo-500 to-violet-500 text-white shadow-[0_2px_12px_rgba(139,92,246,0.3)]"
+                                : "rounded-bl-md border border-line bg-surface-2"
+                            }`}
+                          >
+                            <p className="whitespace-pre-wrap">{message.content}</p>
+                            <div className={`mt-0.5 text-[10px] tabular-nums ${isPlayer ? "text-white/60" : "text-subtle"}`}>
+                              {formatTime(message.createdAt)}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {typingChar === activeChar && (
+                      <div className="mt-3 flex items-end gap-2" aria-live="polite">
+                        <Avatar name={character.name} src={character.avatarUrl} size="xs" />
+                        <div className="flex items-center gap-2 rounded-2xl rounded-bl-md border border-line bg-surface-2 px-4 py-3 text-sm text-muted">
+                          <TypingDots />
+                          <span className="text-xs">{character.name} is typing</span>
+                        </div>
+                      </div>
+                    )}
+                    <div ref={endRef} />
+                  </div>
+
+                  <div className="border-t border-line p-3">
+                    <div className="flex items-center gap-2 rounded-2xl border border-line bg-surface-2/60 p-1.5 pl-4 transition-shadow focus-within:border-accent focus-within:shadow-[0_0_0_3px_var(--accent-soft)]">
+                      <input
+                        className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-subtle"
+                        value={dmText}
+                        onChange={(event) => setDmText(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") submitDm();
+                        }}
+                        placeholder="Start a new message…"
+                        disabled={busy}
+                        aria-label="Message"
+                      />
+                      <span
+                        className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-bold ${
+                          canSend
+                            ? "border-line bg-surface-2/60 text-subtle"
+                            : "border-danger/40 bg-danger/10 text-danger"
+                        }`}
+                        title="Energy cost of a direct message"
+                      >
+                        <ZapIcon size={11} /> {energyCostHint(world.energy, "message")}
+                      </span>
+                      <Button
+                        size="sm"
+                        className="h-9 rounded-xl px-4"
+                        onClick={submitDm}
+                        disabled={busy || !dmText.trim() || !canSend}
+                        icon={<SendIcon size={14} />}
+                      >
+                        Send
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="grid flex-1 place-items-center p-8 text-center">
+                  <div className="flex flex-col items-center gap-3 text-subtle">
+                    <span className="grid h-16 w-16 place-items-center rounded-3xl bg-gradient-to-br from-indigo-500/15 via-violet-500/15 to-fuchsia-500/15 text-accent">
+                      <MailIcon size={28} />
+                    </span>
+                    <p className="font-semibold text-muted">Select a conversation</p>
+                    <p className="max-w-xs text-sm">Your DMs are part of the story — characters remember what you say.</p>
+                  </div>
                 </div>
-                <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                  {messages.map((message) => <div className={`mb-3 max-w-[78%] rounded-2xl px-4 py-2.5 text-sm ${message.sender === "player" ? "ml-auto bg-[#1d9bf0] text-white" : "bg-[#202327]"}`} key={message.id}>{message.content}</div>)}
-                  {typingChar === activeChar && <div className="mb-3 w-fit rounded-2xl bg-[#202327] px-4 py-2 text-sm text-[#71767b]" aria-live="polite">{character.name} is typing <span className="animate-pulse">•••</span></div>}
-                  <div ref={endRef} />
-                </div>
-                <div className="border-t border-[#2f3336] p-3"><div className="flex gap-2 rounded-full bg-[#202327] p-1.5"><input className="min-w-0 flex-1 bg-transparent px-4 outline-none" value={dmText} onChange={(event) => setDmText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") submitDm(); }} placeholder="Start a new message" disabled={busy} /><button className="flex min-w-16 items-center justify-center gap-2 rounded-full bg-[#1d9bf0] px-5 py-2 font-bold disabled:opacity-50" onClick={submitDm} disabled={busy || !dmText.trim()}>{busy && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden="true" />} {busy ? "Sending" : "Send"}</button></div></div>
-              </> : <div className="grid flex-1 place-items-center p-8 text-center text-[#71767b]">Select a conversation to start messaging.</div>}
+              )}
             </div>
           </div>
         </section>
-        <aside className="hidden w-[325px] space-y-4 px-6 py-3 xl:block"><div className="rounded-2xl bg-[#1c2023] p-4"><h2 className="text-xl font-bold">Messages</h2><p className="mt-3 text-sm leading-6 text-[#71767b]">Your conversations are part of the story. Characters may answer differently as the world changes.</p></div></aside>
       </div>
     </main>
   );

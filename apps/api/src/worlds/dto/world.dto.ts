@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsString,
   MaxLength,
+  Max,
   Min,
 } from 'class-validator';
 
@@ -319,4 +320,17 @@ export class ListDmsQueryDto {
   @IsInt()
   @Min(1)
   limit?: number;
+}
+
+export class AddEnergyBonusDto {
+  @ApiPropertyOptional({
+    example: 10,
+    description: 'Bonus energy to grant, in whole energy units.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  amount?: number;
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { CheckIcon } from "@/components/ui/Icons";
+
 type Option<T extends string | number> = {
   value: T;
   label: string;
@@ -23,8 +25,8 @@ export default function OptionPills<T extends string | number>({
   return (
     <fieldset className="space-y-2">
       {label && (
-        <legend className="text-sm text-[#71767b]">
-          {label} {required && <span className="text-red-400" aria-hidden="true">*</span>}
+        <legend className="text-sm font-medium text-muted">
+          {label} {required && <span className="text-danger" aria-hidden="true">*</span>}
         </legend>
       )}
       <div className="flex flex-wrap gap-2">
@@ -35,13 +37,14 @@ export default function OptionPills<T extends string | number>({
               type="button"
               key={String(option.value)}
               aria-pressed={selected}
-              className={`rounded-full border px-3 py-2 text-sm font-semibold transition ${
+              className={`focus-ring inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-all duration-200 ${
                 selected
-                  ? "border-[#1d9bf0] bg-[#1d9bf0] text-white"
-                  : "border-[#38444d] bg-[#101418] text-[#b8c0c7] hover:border-[#1d9bf0]"
+                  ? "border-transparent bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-[0_2px_10px_rgba(139,92,246,0.35)]"
+                  : "border-line bg-surface-2/60 text-muted hover:border-line-strong hover:text-foreground"
               }`}
               onClick={() => onChange(option.value)}
             >
+              {selected && <CheckIcon size={13} strokeWidth={3} />}
               {option.label}
             </button>
           );
